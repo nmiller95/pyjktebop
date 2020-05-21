@@ -1,7 +1,7 @@
 3 5               Task to do (from 2 to 9)   Integ. ring size (deg)  
 0.06 0.6          Sum of the radii           Ratio of the radii      
 89.7 -1           Orbital inclination (deg)  Mass ratio of system    
-0.369 0.1         ecosw or eccentricity      esinw or periastron long
+0.3 0.1           ecosw or eccentricity      esinw or periastron long
 0.0 0.0           Gravity darkening (star A) Grav darkening (star B) 
 1.0 0.0           Surface brightness ratio   Amount of third light   
 quad quad         LD law type for star A     LD law type for star B  
