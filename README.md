@@ -1,3 +1,9 @@
+# JKTEBOP python interface
+
+Compiles and runs JKTEBOP via a python script.
+
+
+
 JKTEBOP                                          John Southworth (2014/05/02)
 =======                                          ============================
 
