@@ -1,0 +1,142 @@
+3 5               Task to do (from 2 to 9)   Integ. ring size (deg)  
+0.06 0.6          Sum of the radii           Ratio of the radii      
+89.7 -1           Orbital inclination (deg)  Mass ratio of system    
+0.369 0.1         ecosw or eccentricity      esinw or periastron long
+0.0 0.0           Gravity darkening (star A) Grav darkening (star B) 
+1.0 0.0           Surface brightness ratio   Amount of third light   
+quad quad         LD law type for star A     LD law type for star B  
+0.2103 0.2309     LD star A (linear coeff)   LD star B (linear coeff)
+0.3453 0.3347     LD star A (nonlin coeff)   LD star B (nonlin coeff)
+0.0 0.0           Reflection effect star A   Reflection effect star B
+0.0 0.0           Phase of primary eclipse   Light scale factor (mag)
+26.1302           Orbital period of eclipsing binary system (days) 
+58391.19916648    Reference time of primary minimum (HJD)          
+ 0  0             Adjust RADII SUM    or  RADII RATIO    (0, 1, 2, 3)
+ 0  0             Adjust INCLINATION  or  MASSRATIO      (0, 1, 2, 3)
+ 0  1             Adjust ECOSW-or-E   or  ESINW-or-OMEGA (0, 1, 2, 3)
+ 0  0             Adjust GRAVDARK1    or  GRAVDARK2      (0, 1, 2, 3)
+ 0  0             Adjust SURFBRIGHT2  or  THIRDLIGHT     (0, 1, 2, 3)
+ 0  0             Adjust LD-LIN starA or  LD-LIN starB   (0, 1, 2, 3)
+ 0  0             Adjust LD-NONLIN A  or  LD-NONLIN B    (0, 1, 2, 3)
+ 0  0             Adjust REFLECTION A or  REFLECTION B   (-1,0,1,2,3)
+ 0  0             Adjust PHASESHIFT   or  SCALE FACTOR   (0, 1, 2, 3)
+ 0  0             Adjust PERIOD       or  T(pri.ecl.)    (0, 1, 2, 3)
+j052.dat          Name of file containing light curve                
+j052.par          Name of output parameter file                      
+j052.out          Name of output light curve file                  
+j052.fit          Name of output model light curve fit file        
+  
+  
+# Enter the appropriate numbers on the left-hand side of each line of this file.
+# Most of the lines require two numerical parameters separated by spaces.       
+  
+# Put a negative number for the mass ratio to force the stars to be spherical.  
+# The mass ratio will then be irrelevant (it is only used to get deformations). 
+  
+# To fit for rA and rB instead of (rA+rB) and k, give a negative value for r1+r2
+# Then (rA+rB) will be interpreted to mean rA,  and k will be interpreted as rB.
+# The adjustment indicators will similarly refer to rA,rB rather than (rA+rB),k.
+  
+# If e < 10 then e and omega will be assumed to be e*cos(omega) and e*sin(omega)
+# If e >= 10 then e and omega will be assumed to be (e+10) and omega (degrees). 
+# The first option is in general better unless eccentricity is larger or fixed. 
+  
+# The possible entries for the type of limb darkening law are 'lin' (for linear)
+# 'log' (logarithmic), 'sqrt' (square-root), 'quad' (quadratic) or 'cub' (cubic)
+# Put 'same' for star B to force its coefficients to be equal those of star A.  
+  
+# For each adjustable parameter the adjustment integer can be 0  (parameter will
+# be fixed at the input file value),  1 (parameter will be freely adjusted),  2 
+# (parameter will be fixed for initial fit but perturbed during later analysis).
+# or  3 (adjusted in initial fit but not perturbed during Monte Carlo analysis).
+  
+# When fitting a light curve  the reflection coefficients can be calculated from
+# the system geometry  (put -1 for the adjustment integers),  held fixed (put 0)
+# or freely adjusted to fit the light curve (put 1) - useful for close binaries.
+  
+# FOUR-PARAMETER LIMB DARKENING:   you can alternatively put '4par' for the limb
+# darkening in which case the input file format differs a bit. Change the lines:
+#                   LD star A (linear coeff)   LD star B (linear coeff)         
+#                   LD star A (nonlin coeff)   LD star B (nonlin coeff)         
+# to the following lines and put in the information at the line starts as usual:
+#                   LD star A (coefficient 1) LD star B (coefficient 1)         
+#                   LD star A (coefficient 2) LD star B (coefficient 2)         
+#                   LD star A (coefficient 3) LD star B (coefficient 3)         
+#                   LD star A (coefficient 4) LD star B (coefficient 4)         
+# You also need to change the lines for the adjustment parameters from:         
+#                   Adjust LD-lin1  or  LD-lin2            (0, 1, 2, 3)         
+#                   Adjust LD-nonlin1  or  LD-nonlin2      (0, 1, 2, 3)         
+# to the following lines and put in the information at the line starts as usual:
+#                   Adjust LDcoeff-A1 or LDcoeff-B1        (0, 1, 2, 3)         
+#                   Adjust LDcoeff-A2 or LDcoeff-B2        (0, 1, 2, 3)         
+#                   Adjust LDcoeff-A3 or LDcoeff-B3        (0, 1, 2, 3)         
+#                   Adjust LDcoeff-A4 or LDcoeff-B4        (0, 1, 2, 3)         
+# Remember not to include the '#' symbol: it is used only to comment lines out. 
+# Reference for the '4par' law: Claret (2000, A&A, 363, 1081)                   
+  
+# TIMES OF MINIMUM LIGHT: add a line below the parameter line to input each one:
+#   'TMIN  [cycle]  [time]  [error]'                                            
+# where [cycle] is cycle number (integer for primary minimum  or integer+0.5 for
+# secondary minimum), [time] and [error] are the observed time and uncertainty. 
+  
+# LIGHT RATIO: add a line below the parameter line to input each observed one:  
+#   'LRAT'  [time]  [light_ratio]  [error]                                      
+# where [time] is the time(HJD) when the spectroscopic light ratio was measured,
+# [light_ratio] is its value and [error] is its measurement uncertainty.        
+  
+# MEASURED THIRD LIGHT VALUE:   include as observed constraint by adding a line:
+# 'THDL'  [value]  [uncertainty]        
+# which gives the third light measurement and its observational uncertainty.    
+  
+# MEASURED orbital shape parameters (depending on the value of eccentricity):   
+#  ECSW  [value]  [uncertainty]    (interpreted as either e*cos(omega) or e)    
+#  ENSW  [value]  [uncertainty]    (interpreted as either e*sin(omega) or omega)
+  
+# SINE AND POLYNOMIAL FITTING:   the parameters of sine curves or polynomials of
+# order 5) can be included.  You can have up to nine sines and five polynomials,
+# each acting on a specific parameter. The information for each one is specified
+# by an additional line below the main input file parameters.     Line format:  
+#   SINE  [par]  [T0]  [P]  [amp]  [vary(T0)]  [vary(P)]  [vary(amp)]           
+#   POLY  [par]  [pivot]  [const]  [x]  [x^2]  [x^3] [x^4]  [x^5]  [vary(const)]  [vary(x)]  [vary(x^2)]  [vary(x^3)]   [vary(x^4)]   [vary(x^5)]               
+# where the required parameters are given inside square brackets. [T0] is a time
+# of zero phase (HJD), [P] is period (days), [amp] is amplitude, and [x^n] are  
+# the coefficients of the polynomial.  Each parameter has a [vary()] which is 0,
+# 1, 2 or 3 to indicate how the parameter is treated.                           
+# [par] indicates what parameter to apply it to: J r1 r2 i L3 sf L1 L2 e w ec ew
+# where sf indicates scale factor, L1 indicates the light from star A, L2 indic-
+# ates the light from star B, ec indicates ecosw and es indicates esinw.        
+# Note that the independent parameter is always time (either HJD or phase).     
+# If you want to apply a polynomial to only part of the data, in a specific time
+# interval, then use the following line           to give the extra information:
+#   POLY  [par]  [pivot]  [const] [x] [x^2] [x^3] [x^4] [x^5]  [vary(const)] [vary(x)] [vary(x^2)] [vary(x^3)] [vary(x^4)] [vary(x^5)]  [start-time]  [end-time]
+# JKTEBOP will check for the two extra numbers and use them automatically.      
+  
+# NUMERICAL INTEGRATION:  long exposure times can be split up into NUMINT points
+# occupying a total time interval of NINTERVAL (seconds) by including this line:
+#   NUMI  [numint]  [ninterval]                                                 
+  
+# FITTING FOR RADIAL VELOCITIES:    the observed RVs should be in separate files
+# for the two stars and the data should be in the same format as the light curve
+# data. Then add a line below the main input parameters for each RV file:       
+#   RV1  [infile]  [outfile]  [K]  [Vsys]  [vary(K)]  [vary(Vsys)]              
+#   RV2  [infile]  [outfile]  [K]  [Vsys]  [vary(K)]  [vary(Vsys)]              
+# where RV1 is for primary star velocities, RV2 is for secondary star velocities
+# [infile] is the input data file, [outfile] is the output data file, [K] is the
+# velocity amplitude of the star (km/s), [Vsys] is its systemic velocity (km/s),
+# and [vary(K)] and [vary(Vsys)] are 0 to fix and 1 to fit for these quantities.
+# The mass ratio parameter is not used for the RVs, only for the light curve.   
+# If you want to fix the systemic velocity for star B to that for star A, simply
+# set vary(Vsys) for star B to be equal to -1                                   
+  
+# ERROR BARS IN THE DATAFILES: whenever JKTEBOP reads in a set of data from file
+# it checks to see if there are three numbers on the first line.  If so, JKTEBOP
+# assumes that the datafile contains three columns (TIME, OBSERVATION, ERRORBAR)
+# and reads the data in accordingly. If it can only find two numbers, it assumes
+# that these represent TIME, OBSERVATION  and that error bars are not available.
+# If errorbars are not available, or if they are too large or too small, JKTEBOP
+# can iteratively scale them until a reduced chi-squared of 1.0 is obtained.  To
+# use this option put the word 'chif' ona line on its own below the main set of 
+# parameters.  Warning: this is available only for light curves with ten or more
+# datapoints and for RV curves with five or more datapoints. Be careful!        
+  
+  
