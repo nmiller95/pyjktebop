@@ -2,7 +2,7 @@ import os
 from matplotlib import pyplot as plt
 import numpy as np
 from astropy.table import Table
-plt.style.use('custom')
+plt.style.use('jktebop.mplstyle')
 
 
 def compile_jktebop():
@@ -73,7 +73,7 @@ def plot_lightcurve(data_phase, data_mag, data_residual, fit_phase, fit_mag):
     figure, axes = plt.subplots(2, sharex='col', figsize=(8, 6),
                                 gridspec_kw={'height_ratios': [4, 2]})
     axes[0].scatter(data_phase, data_mag)
-    axes[0].plot(fit_phase, fit_mag)
+    axes[0].plot(fit_phase, fit_mag, color='C2')
     axes[0].set(ylabel='Magnitude', ylim=(max(data_mag) + 0.05, 0.95))
     axes[1].scatter(data_phase, data_residual)
     axes[1].set(xlabel='Phase', ylabel='Residual')
