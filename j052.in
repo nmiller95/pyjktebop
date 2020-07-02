@@ -1,7 +1,7 @@
 3 5               Task to do (from 2 to 9)   Integ. ring size (deg)  
 0.06 0.6          Sum of the radii           Ratio of the radii      
 89.7 -1           Orbital inclination (deg)  Mass ratio of system    
-0.3 0.2           ecosw or eccentricity      esinw or periastron long
+0.3155 0.06           ecosw or eccentricity      esinw or periastron long
 0.0 0.0           Gravity darkening (star A) Grav darkening (star B) 
 1.0 0.0           Surface brightness ratio   Amount of third light   
 quad quad         LD law type for star A     LD law type for star B  
@@ -11,16 +11,16 @@ quad quad         LD law type for star A     LD law type for star B
 0.0 0.0           Phase of primary eclipse   Light scale factor (mag)
 26.1302           Orbital period of eclipsing binary system (days) 
 58391.19916648    Reference time of primary minimum (HJD)          
- 0  0             Adjust RADII SUM    or  RADII RATIO    (0, 1, 2, 3)
- 0  0             Adjust INCLINATION  or  MASSRATIO      (0, 1, 2, 3)
- 0  1             Adjust ECOSW-or-E   or  ESINW-or-OMEGA (0, 1, 2, 3)
+ 1  1             Adjust RADII SUM    or  RADII RATIO    (0, 1, 2, 3)
+ 1  0             Adjust INCLINATION  or  MASSRATIO      (0, 1, 2, 3)
+ 2  2             Adjust ECOSW-or-E   or  ESINW-or-OMEGA (0, 1, 2, 3)
  0  0             Adjust GRAVDARK1    or  GRAVDARK2      (0, 1, 2, 3)
  0  0             Adjust SURFBRIGHT2  or  THIRDLIGHT     (0, 1, 2, 3)
  0  0             Adjust LD-LIN starA or  LD-LIN starB   (0, 1, 2, 3)
  0  0             Adjust LD-NONLIN A  or  LD-NONLIN B    (0, 1, 2, 3)
  0  0             Adjust REFLECTION A or  REFLECTION B   (-1,0,1,2,3)
  0  0             Adjust PHASESHIFT   or  SCALE FACTOR   (0, 1, 2, 3)
- 0  0             Adjust PERIOD       or  T(pri.ecl.)    (0, 1, 2, 3)
+ 0  1             Adjust PERIOD       or  T(pri.ecl.)    (0, 1, 2, 3)
 j052.dat          Name of file containing light curve                
 j052.par          Name of output parameter file                      
 j052.out          Name of output light curve file                  

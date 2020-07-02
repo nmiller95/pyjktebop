@@ -49,10 +49,11 @@ def model_from_fit_file(target_name):
         :returns: np.arrays of phase, magnitude
         """
     fit_file = Table.read(f'{target_name}.fit', format='ascii')
-    # TODO: phase sort the array so it plots properly
     fit_phase = wrap_phase(np.array(fit_file['PHASE']))
     fit_mag = np.array(fit_file['MAGNITUDE'] + 1)
-    return fit_phase, fit_mag
+    fit_phase_sort = [fit_phase for fit_phase, _ in sorted(zip(fit_phase, fit_mag))]
+    fit_mag_sort = [fit_mag for _, fit_mag in sorted(zip(fit_phase, fit_mag))]
+    return fit_phase_sort, fit_mag_sort
 
 
 def secondary_phase_from_param_file(target_name):
