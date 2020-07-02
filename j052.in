@@ -11,7 +11,7 @@ quad quad         LD law type for star A     LD law type for star B
 0.0 0.0           Phase of primary eclipse   Light scale factor (mag)
 26.1302           Orbital period of eclipsing binary system (days) 
 58391.19916648    Reference time of primary minimum (HJD)          
- 1  1             Adjust RADII SUM    or  RADII RATIO    (0, 1, 2, 3)
+ 0   0             Adjust RADII SUM    or  RADII RATIO    (0, 1, 2, 3)
  1  0             Adjust INCLINATION  or  MASSRATIO      (0, 1, 2, 3)
  2  2             Adjust ECOSW-or-E   or  ESINW-or-OMEGA (0, 1, 2, 3)
  0  0             Adjust GRAVDARK1    or  GRAVDARK2      (0, 1, 2, 3)

@@ -74,10 +74,10 @@ def plot_lightcurve(data_phase, data_mag, data_residual, fit_phase, fit_mag):
     """Plots data and model of the entire phase-folded light curve"""
     figure, axes = plt.subplots(2, sharex='col', figsize=(8, 6),
                                 gridspec_kw={'height_ratios': [4, 2]})
-    axes[0].scatter(data_phase, data_mag, color='C2')
+    axes[0].scatter(data_phase, data_mag, color='#a1a1a1')
     axes[0].plot(fit_phase, fit_mag)
     axes[0].set(ylabel='Magnitude', ylim=(max(data_mag) + 0.05, 0.95))
-    axes[1].scatter(data_phase, data_residual, color='C3')
+    axes[1].scatter(data_phase, data_residual, color='C1')
     axes[1].set(xlabel='Phase', ylabel='Residual')
     figure.align_labels()
     figure.show()
@@ -89,19 +89,19 @@ def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2):
                                 gridspec_kw={'height_ratios': [4, 2]})
     figure.subplots_adjust(hspace=0.05)
     # Primary eclipse
-    axes[0, 0].scatter(data_phase, data_mag)
+    axes[0, 0].scatter(data_phase, data_mag, color='#a1a1a1')
     axes[0, 0].plot(fit_phase, fit_mag)
     axes[0, 0].set(ylabel='Magnitude', xlim=(-0.05, 0.05),
                    ylim=(max(data_mag) + 0.05, 0.95))
     # Primary residual
-    axes[1, 0].scatter(data_phase, data_residual)
+    axes[1, 0].scatter(data_phase, data_residual, color='C1')
     axes[1, 0].set(xlabel='Phase', ylabel='Residual')
     # Secondary eclipse
-    axes[0, 1].scatter(data_phase, data_mag)
+    axes[0, 1].scatter(data_phase, data_mag, color='#a1a1a1')
     axes[0, 1].plot(fit_phase, fit_mag)
     axes[0, 1].set(xlim=(ph2 - 0.05, ph2 + 0.05))
     # Secondary residual
-    axes[1, 1].scatter(data_phase, data_residual)
+    axes[1, 1].scatter(data_phase, data_residual, color='C1')
     axes[1, 1].set(xlabel='Phase')
     figure.align_labels()
     figure.show()
