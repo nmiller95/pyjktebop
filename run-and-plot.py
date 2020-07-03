@@ -50,7 +50,7 @@ def model_from_fit_file(target_name):
         """
     fit_file = Table.read(f'{target_name}.fit', format='ascii')
     fit_phase = wrap_phase(np.array(fit_file['PHASE']))
-    fit_mag = np.array(fit_file['MAGNITUDE'] + 1)
+    fit_mag = np.array(fit_file['MAGNITUDE'])
     fit_phase_sort = [fit_phase for fit_phase, _ in sorted(zip(fit_phase, fit_mag))]
     fit_mag_sort = [fit_mag for _, fit_mag in sorted(zip(fit_phase, fit_mag))]
     return fit_phase_sort, fit_mag_sort
@@ -76,7 +76,8 @@ def plot_lightcurve(data_phase, data_mag, data_residual, fit_phase, fit_mag):
                                 gridspec_kw={'height_ratios': [4, 2]})
     axes[0].scatter(data_phase, data_mag, color='#a1a1a1')
     axes[0].plot(fit_phase, fit_mag)
-    axes[0].set(ylabel='Magnitude', ylim=(max(data_mag) + 0.05, 0.95))
+    axes[0].set(ylabel='Magnitude',
+                ylim=(max(data_mag) + 0.05, min(data_mag) - 0.05))
     axes[1].scatter(data_phase, data_residual, color='C1')
     axes[1].set(xlabel='Phase', ylabel='Residual')
     figure.align_labels()
@@ -92,7 +93,7 @@ def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2):
     axes[0, 0].scatter(data_phase, data_mag, color='#a1a1a1')
     axes[0, 0].plot(fit_phase, fit_mag)
     axes[0, 0].set(ylabel='Magnitude', xlim=(-0.05, 0.05),
-                   ylim=(max(data_mag) + 0.05, 0.95))
+                   ylim=(max(data_mag) + 0.05, min(data_mag) - 0.05))
     # Primary residual
     axes[1, 0].scatter(data_phase, data_residual, color='C1')
     axes[1, 0].set(xlabel='Phase', ylabel='Residual')
@@ -112,7 +113,7 @@ compile_jktebop()
 run_jktebop('j052')
 
 # Extract information from output files
-o_phase, o_mag, o_c = data_from_output_file('j052', vshift=9.5)
+o_phase, o_mag, o_c = data_from_output_file('j052')
 c_phase, c_mag = model_from_fit_file('j052')
 phase_2 = secondary_phase_from_param_file('j052')
 
