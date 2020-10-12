@@ -2,6 +2,7 @@ import os
 from matplotlib import pyplot as plt
 import numpy as np
 from astropy.table import Table
+
 plt.style.use('jktebop.mplstyle')
 
 
@@ -106,16 +107,19 @@ def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2):
     axes[1, 1].set(xlabel='Phase')
     figure.align_labels()
     figure.show()
+    figure.savefig(f'{target_name}-eclipses.png')
 
+
+target_name = 'TESS-j052-3'
 
 # Compile and run JKTEBOP
 compile_jktebop()
-run_jktebop('j052')
+run_jktebop(target_name)
 
 # Extract information from output files
-o_phase, o_mag, o_c = data_from_output_file('j052')
-c_phase, c_mag = model_from_fit_file('j052')
-phase_2 = secondary_phase_from_param_file('j052')
+o_phase, o_mag, o_c = data_from_output_file(target_name)
+c_phase, c_mag = model_from_fit_file(target_name)
+phase_2 = secondary_phase_from_param_file(target_name)
 
 # Make plots
 plot_lightcurve(o_phase, o_mag, o_c, c_phase, c_mag)
