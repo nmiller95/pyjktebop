@@ -93,7 +93,7 @@ def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2):
     # Primary eclipse
     axes[0, 0].scatter(data_phase, data_mag, color='#a1a1a1')
     axes[0, 0].plot(fit_phase, fit_mag)
-    axes[0, 0].set(ylabel='Magnitude', xlim=(-0.05, 0.05),
+    axes[0, 0].set(ylabel='Magnitude', xlim=(-0.02, 0.02),
                    ylim=(max(data_mag) + 0.05, min(data_mag) - 0.05))
     # Primary residual
     axes[1, 0].scatter(data_phase, data_residual, color='C1')
@@ -101,7 +101,7 @@ def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2):
     # Secondary eclipse
     axes[0, 1].scatter(data_phase, data_mag, color='#a1a1a1')
     axes[0, 1].plot(fit_phase, fit_mag)
-    axes[0, 1].set(xlim=(ph2 - 0.05, ph2 + 0.05))
+    axes[0, 1].set(xlim=(ph2 - 0.02, ph2 + 0.02))
     # Secondary residual
     axes[1, 1].scatter(data_phase, data_residual, color='C1')
     axes[1, 1].set(xlabel='Phase')
@@ -110,7 +110,7 @@ def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2):
     figure.savefig(f'{target_name}-eclipses.png')
 
 
-target_name = 'TESS-j052-3'
+target_name = 'TESS-j052'
 
 # Compile and run JKTEBOP
 compile_jktebop()
