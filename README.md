@@ -11,7 +11,7 @@ Installation
 
 Clone the repository to your local machine with
 ```
-git clone https://github.com/nmiller95/jktebop.py.git
+git clone https://github.com/nmiller95/pyjktebop.git
 ```
 
 Setup
