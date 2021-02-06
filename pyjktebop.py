@@ -8,7 +8,7 @@ plt.style.use('jktebop.mplstyle')
 
 def compile_jktebop():
     """Use bash command to compile jktebop.f"""
-    os.system('gfortran -o jktebop jktebop40.f')
+    os.system('gfortran -o jktebop jktebop.f')
 
 
 def run_jktebop(target_name):

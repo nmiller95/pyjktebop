@@ -1,0 +1,135 @@
+================================================================================
+JKTEBOP  output results                   John Southworth (astro.js~keele.ac.uk)
+================================================================================
+Version number of JKTEBOP code: 40      Time and date at start: 15:32 06/02/2021
+  
+Task to perform:                3
+Input parameter file:           TESS-j052.in                                      
+Output parameter file:          TESS-j052.par                                     
+Output model fit:               TESS-j052.fit                                     
+Input light curve data file:    TESS-j052.dat                                     
+Output light curve data file:   TESS-j052.out                                     
+  
+Read  79760 datapoints (no errorbars) from file TESS-j052.dat                                     
+  
+Mass ratio is below zero: the stellar shapes will be forced to be spherical.    
+Eccentricity is below 5:  [e,omega] are taken to be [e*cos(omega),e*sin(omega)].
+Adj(11) = -1 so reflection effect for star 1 is fixed at the input file value.  
+Adj(12) = -1 so reflection effect for star 2 is fixed at the input file value.  
+  
+Initial values of the parameters:               
+  1  Surf. bright. ratio        1.0000000000   (adjusted)      
+  2  Sum of frac radii          0.0627700000   (adjusted)      
+  3  Ratio of the radii         0.6130500000   (adjusted)      
+  4  Limb darkening A1          0.1657000000   (adjusted)      
+  5  Limb darkening B1          0.1817000000   (adjusted)      
+  6  Orbit inclination         89.7450000000   (adjusted)      
+  7  ecc * cos(omega)           0.3091000000   (adjusted)      
+  8  ecc * sin(omega)          -0.2011000000   (adjusted)      
+  9  Grav darkening A           0.0000000000                   
+ 10  Grav darkening B           0.0000000000                   
+ 11  Reflected light A          0.0000000000                   
+ 12  Reflected light B          0.0000000000                   
+ 13  Phot mass ratio           -1.0000000000                   
+ 15  Third light (L_3)          0.0000000000                   
+ 16  Phase correction           0.0000000000                   
+ 17  Light scale factor        10.4990947513   (adjusted)      
+ 18  Integration ring           5.0000000000                   
+ 19  Orbital period (P)        26.1313000000   (adjusted)      
+ 20  Ephemeris timebase      1391.6991664800   (adjusted)      
+ 21  Limb darkening A2          0.3626000000   (adjusted)      
+ 24  Limb darkening B2          0.3561000000   (adjusted)      
+  
+Limb darkening law for primary star:       quadratic       
+Limb darkening law for secondary star:     quadratic       
+  
+Fractional primary radius:                 0.0389138588
+Fractional secondary radius:               0.0238561412
+Stellar light ratio (phase 0.3487):        0.3740241071
+Primary contribut'n to system light:       0.7277892686
+Secondary contrib'n to system light:       0.2722107314
+  
+Impact parameter (primary eclipse):        0.1236918738
+Impact paramtr (secondary eclipse):        0.0822724486
+Orbital eccentricity e:                    0.3687601117
+Periastron longitude omega (degree):     326.9520320416
+  
+Geometric reflection coeff (star A):       0.0001648822
+Geometric reflection coeff (star B):       0.0001656785
+Oblateness of the primary star:            0.0000000000
+Oblateness of the secondary star:          0.0000000000
+  
+  
+---------------------------------------         
+    38 iterations of EBOP completed     
+---------------------------------------         
+  
+Warning: the uncertainties given below are only formal errors and are probably a
+bit optimistic.  Use TASKs 6, 7 and 8 to get reliable errors for the parameters.
+They also assume the noise is only Poissonian: use TASK9 if red noise is strong.
+No observational errors; so parameter errors have been scaled by sqrt(chi^2_red)
+  
+Final values of the parameters:                 
+  1  Surf. bright. ratio        0.9497480029 +/-   0.0047061984
+  2  Sum of frac radii          0.0627683651 +/-   0.0000095434
+  3  Ratio of the radii         0.6139585328 +/-   0.0002871510
+  4  Limb darkening A1          0.2482271355 +/-   0.0175388443
+  5  Limb darkening B1          0.2798214565 +/-   0.0447462874
+  6  Orbit inclination         89.7428773084 +/-   0.0026129350
+  7  ecc * cos(omega)           0.3091902710 +/-   0.0000127615
+  8  ecc * sin(omega)          -0.2004472065 +/-   0.0001944533
+  9  Grav darkening A           0.0000000000   (fixed)         
+ 10  Grav darkening B           0.0000000000   (fixed)         
+ 11  Reflected light A          0.0000000000   (fixed)         
+ 12  Reflected light B          0.0000000000   (fixed)         
+ 13  Phot mass ratio           -1.0000000000   (fixed)         
+ 15  Third light (L_3)          0.0000000000   (fixed)         
+ 16  Phase correction           0.0000000000   (fixed)         
+ 17  Light scale factor        10.5000003694 +/-   0.0000041026
+ 18  Integration ring           5.0000000000   (fixed)         
+ 19  Orbital period (P)        26.1313229993 +/-   0.0000035191
+ 20  Ephemeris timebase      1391.7067196586 +/-   0.0000239298
+ 21  Limb darkening A2          0.2046223394 +/-   0.0292788756
+ 24  Limb darkening B2          0.1954758278 +/-   0.0672445916
+  
+Limb darkening law for primary star:       quadratic       
+Limb darkening law for secondary star:     quadratic       
+  
+Phase of primary eclipse:                  0.0000000000
+Phase of first quadrature:                 0.3487637050
+Phase of secondary eclipse:                0.6975274101
+Phase of second quadrature:                0.8487637050
+Phase of periastron:                      -0.2280063793
+Phase of apastron:                         0.2719936207
+  
+Fractional primary radius:                 0.0388909404
+Fractional secondary radius:               0.0238774247
+Stellar light ratio (phase 0.3488):        0.3543516734
+Primary contribut'n to system light:       0.7383606634
+Secondary contrib'n to system light:       0.2616393366
+  
+Impact parameter (primary eclipse):        0.1247228974
+Impact paramtr (secondary eclipse):        0.0830711592
+Orbital eccentricity e:                    0.3684802658
+Periastron longitude omega (degree):     327.0447690348
+  
+Geometric reflection coeff (star A):       0.0001582923
+Geometric reflection coeff (star B):       0.0001683850
+Oblateness of the primary star:            0.0000000000
+Oblateness of the secondary star:          0.0000000000
+Expected oblateness of primary:            0.0000882272
+Expected oblateness of secondary:          0.0000204195
+  
+Total number of datapoints:                       79760
+Total number of fitted parameters:                   13
+Total number of degrees of freedom:               79747
+Total number of LC datapoints:                    79760
+rms of the LC residuals (mmag):            1.1348805597
+  
+The two highest and two lowest O-C values in the light curve:                   
+ Number        Time       Phase         Magnitude    Model      (O-C)           
+  67589     1664.341728   0.43326465    10.49297   10.50000   -0.00703
+  35709     1501.989503   0.22032913    10.49388   10.50000   -0.00612
+  77396     1679.062778   0.99661347    10.85073   10.84556    0.00517
+  19743     1478.160740   0.30844406    10.50529   10.50000    0.00529
+  
