@@ -55,6 +55,7 @@ python3 run-and-plot.py
 Future fixes & improvements
 ---------------------------
 
+* Include examples
 * Clean up some of the plotting functions
 * Support for other JKTEBOP tasks
 * Option to save image output
