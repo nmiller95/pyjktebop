@@ -4,7 +4,7 @@ Compiles and runs the eclipsing binary fitting code JKTEBOP via a python script.
 
 <img src="https://nikkehmiller.files.wordpress.com/2021/02/tess-j052-eclipses.png" alt="Example output" width="400"/>
 
-This interface uses JKTEBOP (version 34); for information visit [John Taylor's website](http://www.astro.keele.ac.uk/~jkt/codes/jktebop.html).
+This interface uses JKTEBOP (version 40); for information visit [John Taylor's website](http://www.astro.keele.ac.uk/~jkt/codes/jktebop.html).
 
 Installation
 ------------
