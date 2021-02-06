@@ -115,7 +115,7 @@ def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2, 
 
 if __name__ == "__main__":
 
-    target = 'TESS-j052'
+    target = 'examples/TESS-j052'
 
     # Compile and run JKTEBOP
     compile_jktebop()
