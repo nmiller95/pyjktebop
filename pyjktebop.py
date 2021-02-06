@@ -1,3 +1,4 @@
+import sys
 import os
 from matplotlib import pyplot as plt
 import numpy as np
@@ -39,7 +40,12 @@ def data_from_output_file(target_name, v_shift=0):
     :type v_shift: float
     :returns: np.arrays of phase, magnitude, residual
     """
-    output_file = Table.read(f'{target_name}.out', format='ascii')  # Phase-folded light curve
+    try:
+        output_file = Table.read(f'{target_name}.out', format='ascii')  # Phase-folded light curve
+    except FileNotFoundError:
+        print('Output file not found; jktebop did not run successfully. \
+        \nModify the command in compile_jktebop or try running the compile command in terminal.')
+        sys.exit()
     data_phase = wrap_phase(np.array(output_file['PHASE']))
     data_mag = np.array(output_file['MAGNITUDE'] - v_shift)
     data_residual = np.array(output_file['(O-C)'] - v_shift)
@@ -115,7 +121,7 @@ def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2, 
 
 if __name__ == "__main__":
 
-    target = 'TESS-j052'
+    target = 'example'
 
     # Compile and run JKTEBOP
     compile_jktebop()
