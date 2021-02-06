@@ -1,4 +1,7 @@
 # Simple python interface for light curve fitting with JKTEBOP
+[![License: CC0-1.0](https://img.shields.io/badge/License-CC0%201.0-lightgrey.svg)](http://creativecommons.org/publicdomain/zero/1.0/)
+![Open issues](https://img.shields.io/github/issues/nmiller95/pyjktebop)
+![Last commit](https://img.shields.io/github/last-commit/nmiller95/pyjktebop)
 
 Compiles and runs the eclipsing binary fitting code JKTEBOP via a python script. Returns nicely formatted plots of the light curve and fit.
 
