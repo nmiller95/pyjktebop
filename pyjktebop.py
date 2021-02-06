@@ -8,7 +8,7 @@ plt.style.use('jktebop.mplstyle')
 
 def compile_jktebop():
     """Use bash command to compile jktebop.f"""
-    os.system('gfortran -o jktebop jktebop.f')
+    os.system('gfortran -o jktebop jktebop40.f')
 
 
 def run_jktebop(target_name):
@@ -16,11 +16,13 @@ def run_jktebop(target_name):
     :type target_name: str
     """
     # JKTEBOP doesn't run if output files already exist
-    os.system(f'rm -rf {target_name}.out')
-    os.system(f'rm -rf {target_name}.fit')
-    os.system(f'rm -rf {target_name}.par')
-    # Run jktebop executable
-    os.system(f'./jktebop {target_name}.in')
+    try:
+        os.system(f'rm -rf {target_name}.out')
+        os.system(f'rm -rf {target_name}.fit')
+        os.system(f'rm -rf {target_name}.par')
+    finally:
+        # Run jktebop executable
+        os.system(f'./jktebop {target_name}.in')
 
 
 def wrap_phase(phase_array):
@@ -31,16 +33,16 @@ def wrap_phase(phase_array):
     return phase_array
 
 
-def data_from_output_file(target_name, vshift=0):
+def data_from_output_file(target_name, v_shift=0):
     """Extract correctly formatted arrays from the .out file
     :type target_name: str
-    :type vshift: float
+    :type v_shift: float
     :returns: np.arrays of phase, magnitude, residual
     """
     output_file = Table.read(f'{target_name}.out', format='ascii')  # Phase-folded light curve
     data_phase = wrap_phase(np.array(output_file['PHASE']))
-    data_mag = np.array(output_file['MAGNITUDE'] - vshift)
-    data_residual = np.array(output_file['(O-C)'] - (vshift + 1))
+    data_mag = np.array(output_file['MAGNITUDE'] - v_shift)
+    data_residual = np.array(output_file['(O-C)'] - v_shift)
     return data_phase, data_mag, data_residual
 
 
@@ -85,42 +87,46 @@ def plot_lightcurve(data_phase, data_mag, data_residual, fit_phase, fit_mag):
     figure.show()
 
 
-def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2):
+def plot_eclipses(data_phase, data_mag, data_residual, fit_phase, fit_mag, ph2, save=True):
     """Plots data and model centered on the primary and secondary eclipses"""
     figure, axes = plt.subplots(2, 2, figsize=(8, 6), sharex='col', sharey='row',
                                 gridspec_kw={'height_ratios': [4, 2]})
     figure.subplots_adjust(hspace=0.05)
     # Primary eclipse
-    axes[0, 0].scatter(data_phase, data_mag, color='#a1a1a1')
-    axes[0, 0].plot(fit_phase, fit_mag)
+    axes[0, 0].scatter(data_phase, data_mag, color='C1')
+    axes[0, 0].plot(fit_phase, fit_mag, color='#b1b1b1')
     axes[0, 0].set(ylabel='Magnitude', xlim=(-0.02, 0.02),
                    ylim=(max(data_mag) + 0.05, min(data_mag) - 0.05))
     # Primary residual
     axes[1, 0].scatter(data_phase, data_residual, color='C1')
     axes[1, 0].set(xlabel='Phase', ylabel='Residual')
     # Secondary eclipse
-    axes[0, 1].scatter(data_phase, data_mag, color='#a1a1a1')
-    axes[0, 1].plot(fit_phase, fit_mag)
+    axes[0, 1].scatter(data_phase, data_mag, color='C1')
+    axes[0, 1].plot(fit_phase, fit_mag, color='#b1b1b1')
     axes[0, 1].set(xlim=(ph2 - 0.02, ph2 + 0.02))
     # Secondary residual
     axes[1, 1].scatter(data_phase, data_residual, color='C1')
     axes[1, 1].set(xlabel='Phase')
     figure.align_labels()
     figure.show()
-    figure.savefig(f'{target_name}-eclipses.png')
+    if save:
+        figure.savefig(f'{target}-eclipses.png')
 
 
-target_name = 'TESS-j052'
+if __name__ == "__main__":
 
-# Compile and run JKTEBOP
-compile_jktebop()
-run_jktebop(target_name)
+    target = 'TESS-j052'
 
-# Extract information from output files
-o_phase, o_mag, o_c = data_from_output_file(target_name)
-c_phase, c_mag = model_from_fit_file(target_name)
-phase_2 = secondary_phase_from_param_file(target_name)
+    # Compile and run JKTEBOP
+    compile_jktebop()
+    run_jktebop(target)
 
-# Make plots
-plot_lightcurve(o_phase, o_mag, o_c, c_phase, c_mag)
-plot_eclipses(o_phase, o_mag, o_c, c_phase, c_mag, phase_2)
+    # Extract information from output files
+    o_phase, o_mag, o_c = data_from_output_file(target)
+    c_phase, c_mag = model_from_fit_file(target)
+    phase_2 = secondary_phase_from_param_file(target)
+
+    # Make plots
+    plot_lightcurve(o_phase, o_mag, o_c, c_phase, c_mag)
+    plot_eclipses(o_phase, o_mag, o_c, c_phase, c_mag, phase_2)
+
