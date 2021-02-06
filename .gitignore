@@ -1,7 +1,4 @@
 .DS_Store
-*.out
-*.fit
-*.par
 *.iml
 *.xml
 jktebop
