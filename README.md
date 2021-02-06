@@ -2,7 +2,7 @@
 
 Compiles and runs the eclipsing binary fitting code JKTEBOP via a python script. Returns nicely formatted plots of the light curve and fit.
 
-<img src="https://nikkehmiller.files.wordpress.com/2021/02/tess-j052-eclipses.png" alt="Example output" width="400"/>
+<img src="https://nikkehmiller.files.wordpress.com/2021/02/example-eclipses.png" alt="Example output" width="400"/>
 
 This interface uses JKTEBOP (version 40); for information visit [John Taylor's website](http://www.astro.keele.ac.uk/~jkt/codes/jktebop.html).
 
@@ -51,10 +51,8 @@ Run the python script in terminal with
 ```
 python3 run-and-plot.py
 ```
-or just use your favourite IDE.
 
 Future fixes & improvements
 ---------------------------
-
-* Include examples
+ 
 * Support for other JKTEBOP tasks
