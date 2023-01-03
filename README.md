@@ -2,7 +2,7 @@
 
 Compiles and runs the eclipsing binary fitting code JKTEBOP via a python script. Returns plots of the light curve and fit.
 
-This interface uses JKTEBOP (version 34); for information visit [John's website](http://www.astro.keele.ac.uk/~jkt/codes/jktebop.html).
+This interface uses JKTEBOP (version 43); for information visit [John's website](http://www.astro.keele.ac.uk/~jkt/codes/jktebop.html).
 
 
 Compilation

@@ -1,6 +1,6 @@
 !=======================================================================
-!     PROGRAM JKTEBOP           John Southworth   (astro.js~keele.ac.uk)
-!                               Astrophysics Group, Keele University, UK
+!     PROGRAM JKTEBOP       John Southworth (taylorsouthworth~gmail.com)
+!                           Astrophysics Group, Keele University, UK
 !-----------------------------------------------------------------------
 ! PARAMETERS OF THE MODEL:
 ! V(1) = central surface brightness ratio (starB/starA)
@@ -11,8 +11,8 @@
 ! V(6) = orbital inclination (degrees)
 ! V(7) = e cos(omega) OR ecentricity
 ! V(8) = e sin(omega) OR omega(degrees)
-! V(9) = gravity darkening of star A
-! V(10) = gravity darkening of star B
+! V(9) = gravity darkening coefficient of star A
+! V(10) = gravity darkening coefficient of star B
 ! V(11) = reflected light for star A
 ! V(12) = reflected light for star A
 ! V(13) = mass ratio (starB/starA) for the light curve calculation
@@ -33,8 +33,8 @@
 ! V(28) = velocity amplitude of star B (km/s)
 ! V(29) = systemic velocity of star A (km/s)
 ! V(30) = systemic velocity of star B (km/s)
-! V(31-57) nine lots of sine curve parameters [T0,period,amplitude]
-! V(58-138) nine lots of polynomial parameters [pivot,Tstart,Tend,const,x,x2,x3,x4,x5]
+! V(31-90) = twenty lots of sine curve parameters  [T0,period,amplitude]
+! V(91-540) = 50 polynomial pars [pivot,Tstart,Tend,const,x,x2,x3,x4,x5]
 ! VEXTRA(1) = star A fractional radius
 ! VEXTRA(2) = star B fractional radius
 ! VEXTRA(3) = light ratio starB/starA
@@ -61,7 +61,7 @@
 !-----------------------------------------------------------------------
 ! The identity of star A versus that of star B is not important for the
 ! code as it will run happily either way. But primary eclipse is defined
-! to be at phase zero (modulo the phase correction parameter).
+! to be at phase zero (if the phase correction parameter is zero).
 ! By convention the primary eclipse is deeper than the secondary eclipse
 ! and star A is the star which is eclipsed during primary eclipse (i.e.
 ! is at inferior conjunction). This normally means that star A is the
@@ -114,7 +114,20 @@
 ! Version 32: Added OCCULTQUAD routine as alternative to the EBOP model.
 ! Version 33: Extended to 9 polynomials, applied to subsets of the data.
 ! Version 34: Can now put polynomials and sines on e, w, ecosw and esinw
-! Last modified: 2014/04/07
+! Version 35: Can now put polynomials and sines on T0 to allow for TTVs.
+! Version 36: Can now put polynomials and sines on orbital parameters.
+! Version 37: Fixed inability to have negative velocity amplitudes, and
+!             modified to the IAU 2015 resolution Rsun and GMsun values.
+! Version 38: Added eclipse durations, reviewed gravity darkening and
+!             added printout of the most discrepant light curve points.
+! Version 39: Allowed for input and output files of 50 characters length
+! Version 40: Fixed problem with ellipsoidal effect and nonlinear LD.
+! Version 41: Extended to having 20 sines & 50 polynomials. Minor fixes.
+! Version 42: Implemented the power-2 LD law (using c,alpha *or* h1,h2),
+!             and changed task 2 to allow input reflection coefficients.
+! Version 43: Implemented combination LDs for quad, log, sqrt and cubic,
+!             checks for data outside limits or NaN, added nofit option.
+! Last modified: 2022/12/09
 !-----------------------------------------------------------------------
 ! POSSIBLE MODIFICATIONS IN FUTURE:
 ! 1) Extend to WD2003 and WINK
@@ -122,7 +135,6 @@
 ! 3) Incorporate change of omega (apsidal motion)
 ! 4) Include a light-time effect
 ! 5) Allow for multiple light and radial velocity curves
-! 6) Try LD power law proposed by Hestroffer (1997A+A...327..199H)
 !-----------------------------------------------------------------------
 ! MISCELLANEOUS NOTES:
 ! 1) Phase shift has been redefined compared to original EBOP so that it
@@ -143,13 +155,10 @@
 ! 7) Observational errors are looked for in the  input light curve file.
 !    If they are not found then  equal weight  is given  to each  point.
 ! 8) Nonlinear LD is now supported for the two-coefficient  logarithmic,
-!    quadratic and square-root laws, and for the "Claret" four-parameter
-!    law. The type of law must be specified on input. Star B can also be
-!    forced to have the same coefficients as star A. If the Claret four-
-!    parameter law is used then it must be used for both stars.
-!    NOTE: normalisation for the  logarithmic and four-parameter laws is
-!    inexact as I have not got equations to do so.  The approximation of
-!    spherical stars is used for these laws.
+!    quadratic, square-root and power-2 laws, and for the "Claret" four-
+!    parameter law. The type of law must be specified on input.  Star B
+!    can also be forced to have the same coefficients as star A. If the
+!    Claret four-parameter law is used, it must be used for both stars.
 ! 9) Fitting for times of minimum light is directly possible.  The cycle
 !    numbers and times are inputted  on lines  immediately below all the
 !    parameter lines in the input file.
@@ -157,7 +166,7 @@
 !     means i=89 gives same answer as i=91),  which causes problems with
 !     numerical derivativs when i>89.9. In this case some extra is added
 !     to the numerical derivative to keep the solution slightly below 90
-! 11) If input (rA+rB) is negative,  (rA+rB,k) is interpreted as (rA,rB)
+! 11) If input (rA+rB) is negative, (rA+rB,k) is interpreted as (-rA,rB)
 ! 12) If  VARY=3  then the parameter is optimised during all fits but is
 !     not perturbed by a set amount in later analyses (eg. Monte Carlo).
 ! 13) If the maximum number of datapoints is too small for you,  you can
@@ -178,32 +187,17 @@
 ! LANGUAGE:  JKTEBOP is written in FORTRAN 77, using several extensions
 !   to the ANSI standard:   ==   <=   <   >   >=   /=   !   enddo  endif
 !   Until version 24 it was only ever compiled in g77.
-! g77 compiler: I only occasionally check if this works as the g77 comp-
-!   iler is no longer supported.   To compile with g77 you should change
-!   the way the DATE_AND_TIME intrinsic function is called.  To do this,
-!   simply search for the lines containing "DTTIME*9",  uncomment these,
-!   and comment out the lines containing "DTTIME*10".     I successfully
-!   compiled JKTEBOP v25 on 2010/10/29 using  gcc version 3.4.6 20060404
-!   (Red Hat 3.4.6-4) on a Scientific Linux PC. The compilation command:
-!   g77 -O -Wuninitialized -fbounds-check -fno-automatic -o jktebop
-! g95 compiler: this compiles successfully but I have not actually tried
-!   to run the resulting executable file.    Compiler version used: "G95
-!   (GCC 4.1.2 (g95 0.93!) Jun 16 2010)"  running on a kubuntu 10.04 PC.
-! gfortran compiler:  this compiles successfully and executes correctly.
-!   The compiler version used last time I modified the current text was:
-!   "GNU Fortran (Ubuntu 4.4.3-4ubuntu5) 4.4.3" running on kubuntu 10.04
-! f77 compiler: this failed to compile JKTEBOPv28 on 2012/05/31, instead
-!   producing about 50 warnings and errors.  This is probably due to the
-!   use of some common extensions to FORTRAN77.
-! Intel-Fortran compiler: this is periodically checked and found to work
-!   well. JKTEBOP versions v26 and earlier must be compiled with the -r8
-!   command-line flag in order to avoid numerical noise arising from the
-!   use of single-precision variables. JKTEBOP v27 onwards is all real*8
-!   As of version 12.1.4 there are several remarks about the format sta-
-!   tements which are outputted on compilation. These are not a problem.
-!   For JKTEBOP version 29 onwards, the implicit-length arrays cause a
-!   segmentation fault with ifort. This can be fixed by including the
-!   compilation flag "-heap-arrays" on the command line.
+! gfortran compiler:  this compiles successfully, executes correctly and
+!   is the compiler I use for JKTEBOP. I currently use gfortran from gcc
+!   gcc version 5.4.0 running on Linux Mint 18.3
+! g77 compiler: this is obsolete and should not be used. Use gfortran.
+! g95 compiler: this is available and should work but I no longer use it
+! Intel-Fortran compiler: up to JKTEBOP version 35 this was periodically
+!   checked and found to work well.  I no longer use this compiler as my
+!   license has expired. JKTEBOP version 26 and earlier must be compiled
+!   with the -r8 command-line flag.    For JKTEBOP version 29 onwards, I
+!   found that implicit-length arrays caused a  segmentation fault  that
+!   could be fixed by adding the flag "-heap-arrays" at compilation.
 !-----------------------------------------------------------------------
 ! INPUT/OUTPUT FILE UNIT NUMBERS:
 ! 50  output new file (used only in subroutine NEWFILE)
@@ -225,6 +219,21 @@
 ! DTYPE=6 for e*sin(omega) or omega
 ! DTYPE=7 for radial velocities (RVs) of star A
 ! DTYPE=8 for radial velocities of star B
+!-----------------------------------------------------------------------
+! TYPES OF LIMB DARKENING:
+! LDTYPE=1: linear LD law
+! LDTYPE=2: quadratic LD law
+! LDTYPE=3: logarithmic LD law
+! LDTYPE=4: square-root LD law
+! LDTYPE=5: cubic LD law
+! LDTYPE=6: power-2 law
+! LDTYPE=9: Claret four-parameter LD law
+! LDTYPE=-2: quadratic LD law using u+0.6v and u-0.6v
+! LDTYPE=-3: logarithmic LD law using u+0.6v and u-0.6v
+! LDTYPE=-4: square-root LD law using u+0.6v and u-0.6v
+! LDTYPE=-5: cubic LD law using u+0.3v and u-0.3v
+! LDTYPE=-6: power-2 law re-parameterised into h1 and h2
+! LDTYPE=-1: star 2 has same LD as star 1 (possible for LDTYPE(2) only)
 !=======================================================================
 !=======================================================================
       PROGRAM JKTEBOP
@@ -247,10 +256,10 @@
             ! DATAFORM='5',   whereas for MAXDATA=999999 you would need
             ! DATAFORM='6' or greater.
             ! The reason to make this easy to specify  is that the user
-            ! has more control over the exact spacing of diagnostic out-
-            ! put,  which may be useful if that output is in turn being
-            ! read by another code which needs numbers to be in a speci-
-            ! fic place in the output.
+            ! has more control over the exact spacing of the diagnostic
+            ! output,  which may be useful if that output is being read
+            ! by another code  which needs numbers to be in a  specific
+            ! place in the output.
       integer MAXDATA
       parameter (MAXDATA = 999999)
       character*1 DATAFORM
@@ -258,9 +267,9 @@
 
       integer VERSION               ! Version of this code
       integer TASK                  ! Task to perform (between 0 and 5)
-      character INFILE*30           ! Name of the input parameter file
-      real*8  V(138)                ! Fundamental EBOP model parameters
-      integer VARY(138)             ! Params fixed (0) or variable (1)
+      character INFILE*50           ! Name of the input parameter file
+      real*8  V(540)                ! Fundamental EBOP model parameters
+      integer VARY(540)             ! Params fixed (0) or variable (1)
       integer LDTYPE(2)             ! Type of LD law for each star
       real*8  DATX(MAXDATA)         ! Data abscissa (time or phase)
       real*8  DATY(MAXDATA)         ! Data ordinate (measured value)
@@ -273,16 +282,16 @@
       integer NECW                  ! Number of observed e*cos(omega)'s
       integer NESW                  ! Number of observed e*sin(omega)'s
       integer NSINE                 ! Number of sine curves to include
-      integer PSINE(9)              ! Which parameter each sine acts on
+      integer PSINE(20)             ! Which parameter each sine acts on
       integer NPOLY                 ! Number of polynomials to include
-      integer PPOLY(9)              ! Which parameter each poly acts on
+      integer PPOLY(50)             ! Which parameter each poly acts on
       integer NSIM                  ! Number of simulations or refits
       real*8  SIGMA                 ! Sigma rejection value for task 4
       integer NUMINT                ! Number of numerical integrations
       real*8  NINTERVAL             ! Time interval for numerical ints.
       integer i,ERROR               ! Loop counter and error flag
 
-      VERSION = 34
+      VERSION = 43
 
       ERROR = 0
       do i = 1,MAXDATA
@@ -291,10 +300,12 @@
         DATERR(i) = 0.0d0
         DTYPE(i) = 0
       end do
-      do i = 1,138
+      do i = 1,540
         V(i) = -100.0d0
         VARY(i) = 0
       end do
+      V(27) = -1.0d10               ! Need very low values to avoid ...
+      V(28) = -1.0d10               ! ... ignoring negative values.
       NDATA = 0
       NMIN = 0
       NLR = 0
@@ -304,8 +315,10 @@
       NSIM = 0
       NSINE = 0
       NPOLY = 0
-      do i = 1,9
+      do i = 1,20
         PSINE(i) = 0
+      end do
+      do i = 1,50
         PPOLY(i) = 0
       end do
       LDTYPE(1) = -100
@@ -323,8 +336,8 @@
             ! be the input file name.
 
       write(6,*) " "
-      write(6,'(A10,I2,A13,A55)') "JKTEBOP  v",VERSION,"       John S",
-     &        "outhworth  (Keele University, UK, astro.js~keele.ac.uk)"
+      write(6,'(A10,I2,A13,A55)') "JKTEBOP  v",VERSION,"  John Southw",
+     &        "orth (Keele University, UK, taylorsouthworth~gmail.com)"
 
       if ( iargc() == 1 ) then
         CALL GETARG (1,INFILE)
@@ -457,8 +470,8 @@
       SUBROUTINE NEWFILE ()                ! Makes all empty input files
       implicit none
       integer TASK                         ! Task the file is wanted for
-      character*30 OUTFILE                 ! Name of output file to make
-      integer i,ERROR                      ! Loop counter and error flag
+      character*50 OUTFILE                 ! Name of output file to make
+      integer ERROR                        ! Loop counter and error flag
 
       ERROR = 0
       write(6,'(A39,$)')   "Enter name of input file to create >>  "
@@ -478,7 +491,7 @@
       end if
 
       write(50,100)"Task to do (from 2 to 9)   Integ. ring size (deg)  "
-      write(50,100)"Sum of the radii           Ratio of the radii      "
+      write(50,100)"Sum of fractional radii    Ratio of the radii      "
       write(50,100)"Orbital inclination (deg)  Mass ratio of system    "
       write(50,100)"ecosw or eccentricity      esinw or periastron long"
       write(50,100)"Gravity darkening (star A) Grav darkening (star B) "
@@ -491,7 +504,7 @@
 
       if ( TASK >= 3 .and. TASK <= 9 ) then
         write(50,101)"Orbital period of eclipsing binary system (days) "
-        write(50,101)"Reference time of primary minimum (HJD)          "
+        write(50,101)"Reference time of primary minimum (JD/HJD/BJD)   "
       end if
 
       if ( TASK == 2 ) then
@@ -545,6 +558,16 @@
      &               " (it is only used to get deformations). "
       write (50,*) " "
 
+      if ( TASK == 2 ) then
+        write (50,102) "# The reflection coefficients will be ta",
+     &                 "ken from the input file. If you want the"
+        write (50,102) "# code to calculate them itself (which w",
+     &                 "ill be the usual situation), put a large"
+        write (50,102) "# negative number (e.g. -100) for each r",
+     &                 "eflection coefficient in the input file."
+        write (50,*) " "
+      end if
+
       write (50,102) "# To fit for rA and rB instead of (rA+rB",
      &               ") and k, give a negative value for r1+r2"
       write (50,102) "# Then (rA+rB) will be interpreted to me",
@@ -563,8 +586,14 @@
 
       write (50,102) "# The possible entries for the type of l",
      &               "imb darkening law are 'lin' (for linear)"
-      write (50,102) "# 'log' (logarithmic), 'sqrt' (square-ro",
-     &               "ot), 'quad' (quadratic) or 'cub' (cubic)"
+      write (50,102) "# 'quad' (quadratic), 'log' (logarithmic",
+     &               "), 'sqrt' (square-root), 'cub' (cubic), "
+      write (50,102) "# 'pow2' (power-2), qrep (quadratic re-p",
+     &               "arameterisation) lrep (logarithmic re-  "
+      write (50,102) "# parameterisation, srep (square-root re",
+     &               "-parameterisation, crep (cubic re-param-"
+      write (50,102) "# eterisation, and 'h1h2' (power-2 with ",
+     &               "the h1 and h2 parameterisation).        "
       write (50,102) "# Put 'same' for star B to force its coe",
      &               "fficients to be equal those of star A.  "
       write (50,*) " "
@@ -609,13 +638,13 @@
       write (50,102) "# to the following lines and put in the ",
      &               "information at the line starts as usual:"
       write (50,102) "#                   LD star A (coefficie",
-     &               "nt 1) LD star B (coefficient 1)         "
+     &               "nt 1)  LD star B (coefficient 1)        "
       write (50,102) "#                   LD star A (coefficie",
-     &               "nt 2) LD star B (coefficient 2)         "
+     &               "nt 2)  LD star B (coefficient 2)        "
       write (50,102) "#                   LD star A (coefficie",
-     &               "nt 3) LD star B (coefficient 3)         "
+     &               "nt 3)  LD star B (coefficient 3)        "
       write (50,102) "#                   LD star A (coefficie",
-     &               "nt 4) LD star B (coefficient 4)         "
+     &               "nt 4)  LD star B (coefficient 4)        "
       write (50,102) "# You also need to change the lines for ",
      &               "the adjustment parameters from:         "
       write (50,102) "#                   Adjust LD-lin1  or  ",
@@ -624,14 +653,14 @@
      &               "r  LD-nonlin2      (0, 1, 2, 3)         "
       write (50,102) "# to the following lines and put in the ",
      &               "information at the line starts as usual:"
-      write (50,102) "#                   Adjust LDcoeff-A1 or",
-     &               " LDcoeff-B1        (0, 1, 2, 3)         "
-      write (50,102) "#                   Adjust LDcoeff-A2 or",
-     &               " LDcoeff-B2        (0, 1, 2, 3)         "
-      write (50,102) "#                   Adjust LDcoeff-A3 or",
-     &               " LDcoeff-B3        (0, 1, 2, 3)         "
-      write (50,102) "#                   Adjust LDcoeff-A4 or",
-     &               " LDcoeff-B4        (0, 1, 2, 3)         "
+      write (50,102) "#                   Adjust LDcoeff-A1   ",
+     &               "or  LDcoeff-B1     (0, 1, 2, 3)         "
+      write (50,102) "#                   Adjust LDcoeff-A2   ",
+     &               "or  LDcoeff-B2     (0, 1, 2, 3)         "
+      write (50,102) "#                   Adjust LDcoeff-A3   ",
+     &               "or  LDcoeff-B3     (0, 1, 2, 3)         "
+      write (50,102) "#                   Adjust LDcoeff-A4   ",
+     &               "or  LDcoeff-B4     (0, 1, 2, 3)         "
       write (50,102) "# Remember not to include the '#' symbol",
      &               ": it is used only to comment lines out. "
       write (50,102) "# Reference for the '4par' law: Claret (",
@@ -640,7 +669,7 @@
 
       write (50,102) "# TIMES OF MINIMUM LIGHT: add a line bel",
      &               "ow the parameter line to input each one:"
-      write (50,102) "#   'TMIN  [cycle]  [time]  [error]'    ",
+      write (50,102) "#   TMIN  [cycle]  [time]  [error]      ",
      &               "                                        "
       write (50,102) "# where [cycle] is cycle number (integer",
      &               " for primary minimum  or integer+0.5 for"
@@ -650,26 +679,27 @@
 
       write (50,102) "# LIGHT RATIO: add a line below the para",
      &               "meter line to input each observed one:  "
-      write (50,102) "#   'LRAT'  [time]  [light_ratio]  [erro",
-     &               "r]                                      "
-      write (50,102) "# where [time] is the time(HJD) when the",
-     &               " spectroscopic light ratio was measured,"
+      write (50,102) "#   LRAT  [time]  [light_ratio]  [error]",
+     &               "                                        "
+      write (50,102) "# where [time] is the time when the spec",
+     &               "troscopic light ratio was measured,     "
       write (50,102) "# [light_ratio] is its value and [error]",
      &               " is its measurement uncertainty.        "
       write (50,*) " "
 
       write (50,102) "# MEASURED THIRD LIGHT VALUE:   include ",
      &               "as observed constraint by adding a line:"
-      write (50,102) "# 'THDL'  [value]  [uncertainty]        "
+      write (50,102) "#   THDL  [value]  [uncertainty]        ",
+     &               "                                        "
       write (50,102) "# which gives the third light measuremen",
      &               "t and its observational uncertainty.    "
       write (50,*) " "
 
       write (50,102) "# MEASURED orbital shape parameters (dep",
      &               "ending on the value of eccentricity):   "
-      write (50,102) "#  ECSW  [value]  [uncertainty]    (inte",
+      write (50,102) "#   ECSW  [value]  [uncertainty]   (inte",
      &               "rpreted as either e*cos(omega) or e)    "
-      write (50,102) "#  ENSW  [value]  [uncertainty]    (inte",
+      write (50,102) "#   ENSW  [value]  [uncertainty]   (inte",
      &               "rpreted as either e*sin(omega) or omega)"
       write (50,*) " "
 
@@ -690,24 +720,28 @@
      &               "[vary(x^4)]   [vary(x^5)]               "
       write (50,102) "# where the required parameters are give",
      &               "n inside square brackets. [T0] is a time"
-      write (50,102) "# of zero phase (HJD), [P] is period (da",
-     &               "ys), [amp] is amplitude, and [x^n] are  "
-      write (50,102) "# the coefficients of the polynomial.  E",
-     &               "ach parameter has a [vary()] which is 0,"
-      write (50,102) "# 1, 2 or 3 to indicate how the paramete",
-     &               "r is treated.                           "
-      write (50,102) "# [par] indicates what parameter to appl",
-     &               "y it to: J r1 r2 i L3 sf L1 L2 e w ec ew"
-      write (50,102) "# where sf indicates scale factor, L1 in",
-     &               "dicates the light from star A, L2 indic-"
-      write (50,102) "# ates the light from star B, ec indicat",
-     &               "es ecosw and es indicates esinw.        "
+      write (50,102) "# of zero phase (JD/HJD/BJD), [P] is per",
+     &               "iod (days), [amp] is amplitude and [x^n]"
+      write (50,102) "# are the coefficients of the polynomial",
+     &               ".  Each parameter has a [vary()] which  "
+      write (50,102) "# is 0, 1, 2 or 3 to indicate how the pa",
+     &               "rameter is treated.                     "
+      write (50,102) "# [par] indicates the parameter to apply",
+     &               " it to: J, r1, r2, i, L3, sf, L1, L2, e,"
+      write (50,102) "# w, ec, es, T0, KA, KB, VA, VB. Here sf",
+     &               " is the scale factor, L1 is the light   "
+      write (50,102) "# from star A, L2 is the light from star",
+     &               " B, ec is ecosw, es is esinw, T0 is the "
+      write (50,102) "# reference time of minimum, KA and KB a",
+     &               "re the velocity amplitudes of the two   "
+      write (50,102) "# stars, and VA and VB are the systemtic",
+     &               " velocities of the two stars.           "
       write (50,102) "# Note that the independent parameter is",
-     &               " always time (either HJD or phase).     "
+     &               " always time (JD/HJD/BJD or phase).     "
       write (50,102) "# If you want to apply a polynomial to o",
      &               "nly part of the data, in a specific time"
       write (50,102) "# interval, then use the following line ",
-     &               "to give the extra information:"
+     &               "to give the extra information:          "
       write (50,'(A40,A40,A40,A40)')
      &               "#   POLY  [par]  [pivot]  [const] [x] [x",
      &               "^2] [x^3] [x^4] [x^5]  [vary(const)] [va",
@@ -766,23 +800,29 @@
       write (50,102) "# can iteratively scale them until a red",
      &               "uced chi-squared of 1.0 is obtained.  To"
       write (50,102) "# use this option put the word 'chif' on",
-     &               "a line on its own below the main set of "
+     &               " a line on its own below the main set of"
       write (50,102) "# parameters.  Warning: this is availabl",
      &               "e only for light curves with ten or more"
       write (50,102) "# datapoints and for RV curves with five",
      &               " or more datapoints. Be careful!        "
       write (50,*) " "
 
+      write (50,102) "# Specify 'nofit' at the start of a line",
+     &               " to fix all the parameters at the input "
+      write (50,102) "# values. This can be useful for debuggi",
+     &               "ng when a fit is poor or fails.         "
+      write (50,*) " "
+
       write (50,*) " "
 
       close (50,status="keep")
-      write(6,'(A29,I1,A21,A30)') "An empty input file for task ",TASK,
+      write(6,'(A29,I1,A21,A50)') "An empty input file for task ",TASK,
      &                                   " has been written to ",OUTFILE
 
 100   FORMAT (18X,A51)
 101   FORMAT (18X,A49)
 102   FORMAT (A40,A40)
-1021  FORMAT (A40,A40,A40,A40)
+! 1021  FORMAT (A40,A40,A40,A40)
 103   FORMAT (" 0  0",13X,A51)
 
       END SUBROUTINE NEWFILE
@@ -801,9 +841,9 @@
       integer MAXDATA                     ! IN: max number of datapoints
       character DATAFORM*1                ! IN: MAXDATA character length
       integer VERSION,TASK                ! IN:  Code version Task numbr
-      character INFILE*30                 ! IN:  Name of the  input file
-      real*8 V(138)                        ! OUT: Photometric  parameters
-      integer VARY(138)                    ! OUT: Par adjustment ingeters
+      character INFILE*50                 ! IN:  Name of the  input file
+      real*8 V(540)                       ! OUT: Photometric  parameters
+      integer VARY(540)                   ! OUT: Par adjustment ingeters
       integer LDTYPE(2)                   ! OUT: Type of LD law to adopt
       real*8 DATX(MAXDATA)                ! OUT: Data independent varble
       real*8 DATY(MAXDATA)                ! OUT: Data dependent variable
@@ -812,19 +852,20 @@
       integer NDATA,NLR,NMIN              ! OUT: Amount of types of data
       integer NSIM                        ! OUT: Number  of  simulations
       real*8 SIGMA                        ! OUT: Sigma  rejection  value
-      integer NSINE,NL3,NECW,NESW         ! OUT: Numbrs of sines and L3s
-      integer PSINE(9)                    ! OUT: Which par for each sine
-      integer NPOLY,PPOLY(9)              ! OUT: Similar for polynomials
+      integer NSINE,NL3                   ! OUT: Number of sines and L3s
+      integer NECW,NESW                   ! OUT: Number of ecosw & esinw
+      integer PSINE(20)                   ! OUT: Which par for each sine
+      integer NPOLY,PPOLY(50)             ! OUT: Similar for polynomials
       integer NUMINT                      ! OUT: Number of numerical int
       real*8  NINTERVAL                   ! OUT: Time interval of numint
-      character OBSFILE*30                ! LOCAL: Input lightcurve file
-      character LCFILE*30                 ! LOCAL: Output lghtcurve file
-      character PARFILE*30                ! LOCAL: Output parameter file
-      character FITFILE*30                ! LOCAL: Output model fit file
-      character RV1OBSFILE*30             ! LOCAL: Input RV file, star A
-      character RV2OBSFILE*30             ! LOCAL: Input RV file, star B
-      character RV1OUTFILE*30             ! LOCAL: Output RV file star A
-      character RV2OUTFILE*30             ! LOCAL: Output RV file star B
+      character OBSFILE*50                ! LOCAL: Input lightcurve file
+      character LCFILE*50                 ! LOCAL: Output lghtcurve file
+      character PARFILE*50                ! LOCAL: Output parameter file
+      character FITFILE*50                ! LOCAL: Output model fit file
+      character RV1OBSFILE*50             ! LOCAL: Input RV file, star A
+      character RV2OBSFILE*50             ! LOCAL: Input RV file, star B
+      character RV1OUTFILE*50             ! LOCAL: Output RV file star A
+      character RV2OUTFILE*50             ! LOCAL: Output RV file star B
       integer i,j,k,ERROR,STATUS          ! LOCAL: Counter & error flags
       real*8 LP,LS                        ! LOCAL: Light from  each star
       real*8 ARRAY(MAXDATA),SELLECT       ! LOCAL: Help array & FUNCTION
@@ -833,15 +874,19 @@
       character LD1*4,LD2*4               ! LOCAL: type of LD law to use
       character CHARHELP200*200           ! LOCAL: variable to read in
       character CHARHELP4*4               ! LOCAL: variable to read in
-      real*8 GETMODEL,MAG
-      character WHICHPAR*2
-      integer IARRAY(6),IHELP
-      real*8 R1,R2
-      integer CHIFUDGE
-      real*8 POLYPIV,POLYSTART,POLYSTOP,POLYCONST
-      real*8 POLYX1,POLYX2,POLYX3,POLYX4,POLYX5
+      real*8 GETMODEL,MAG                 ! LOCAL: function, value ret'd
+      character WHICHPAR*2                ! LOCAL: par name for sin/poly
+      integer IARRAY(6),IHELP             ! LOCAL: for reading stuff in
+      real*8 R1,R2                        ! LOCAL: frac radii of stars
+      integer CHIFUDGE                    ! LOCAL: indicator for option
+      real*8 POLYPIV,POLYSTART,POLYSTOP   ! LOCAL: polynomial parameters
+      real*8 POLYCONST,POLYX1,POLYX2      ! LOCAL: polynomial parameters
+      real*8 POLYX3,POLYX4,POLYX5         ! LOCAL: polynomial parameters
+      integer NDATA_LC,NDATA_NOTLC        ! LOCAL: number of datapoints
+      integer NOFIT                       ! LOCAL: flag to fit nothing
 
       CHIFUDGE = 0                        ! LOCAL: to force chi^2_nu = 1
+      NOFIT = 0                           ! LOCAL: set to 0 to ignore
 
       ERROR = 0
       STATUS = 0
@@ -892,7 +937,7 @@
      &        "rs using Monte Carlo given significant correlated noise"
 
       CALL READFF (60,"RADII SUM ",-0.8d0, 0.8d0, V( 2),
-     &                "RADIIRATIO", 0.0d2, 1.0d2, V( 3),STATUS)
+     &                "RADIIRATIO", 0.0d0, 1.0d2, V( 3),STATUS)
 
       if ( V(3) < 0.0 ) then
         write (6,'(A39,A41)') "### Warning: the ratio of the radii is ",
@@ -917,75 +962,90 @@
       read (60,*) LD1,LD2
 
       if ( LD1 == "lin"  ) LDTYPE(1) = 1
-      if ( LD1 == "log"  ) LDTYPE(1) = 2
-      if ( LD1 == "sqrt" ) LDTYPE(1) = 3
-      if ( LD1 == "quad" ) LDTYPE(1) = 4
+      if ( LD1 == "quad" ) LDTYPE(1) = 2
+      if ( LD1 == "log"  ) LDTYPE(1) = 3
+      if ( LD1 == "sqrt" ) LDTYPE(1) = 4
       if ( LD1 == "cub"  ) LDTYPE(1) = 5
-      if ( LD1 == "4par" ) LDTYPE(1) = 6
-      if ( LD2 == "same" ) LDTYPE(2) = 0
-      if ( LD2 == "lin"  ) LDTYPE(2) = 1
-      if ( LD2 == "log"  ) LDTYPE(2) = 2
-      if ( LD2 == "sqrt" ) LDTYPE(2) = 3
-      if ( LD2 == "quad" ) LDTYPE(2) = 4
-      if ( LD2 == "cub"  ) LDTYPE(2) = 5
-      if ( LD2 == "4par" ) LDTYPE(2) = 6
+      if ( LD1 == "pow2" ) LDTYPE(1) = 6
+      if ( LD1 == "4par" ) LDTYPE(1) = 9
+      if ( LD1 == "qrep" ) LDTYPE(1) = -2
+      if ( LD1 == "lrep" ) LDTYPE(1) = -3
+      if ( LD1 == "srep" ) LDTYPE(1) = -4
+      if ( LD1 == "crep" ) LDTYPE(1) = -5
+      if ( LD1 == "h1h2" ) LDTYPE(1) = -6
 
-      if ( LDTYPE(1) <= 0 ) then
-        write(6,'(A39,A41)') "### ERROR: LD law for star A should be ",
-     &                     "'lin' 'log' 'sqrt' 'quad' 'cub' or '4par'"
+      if ( LD2 == "lin"  ) LDTYPE(2) = 1
+      if ( LD2 == "quad" ) LDTYPE(2) = 2
+      if ( LD2 == "log"  ) LDTYPE(2) = 3
+      if ( LD2 == "sqrt" ) LDTYPE(2) = 4
+      if ( LD2 == "cub"  ) LDTYPE(2) = 5
+      if ( LD2 == "pow2" ) LDTYPE(2) = 6
+      if ( LD2 == "4par" ) LDTYPE(2) = 9
+      if ( LD2 == "qrep" ) LDTYPE(2) = -2
+      if ( LD2 == "lrep" ) LDTYPE(2) = -3
+      if ( LD2 == "srep" ) LDTYPE(2) = -4
+      if ( LD2 == "crep" ) LDTYPE(2) = -5
+      if ( LD2 == "h1h2" ) LDTYPE(2) = -6
+      if ( LD2 == "same" ) LDTYPE(2) = -1
+
+      if ( LDTYPE(1) < -98 ) then
+        write(6,'(A39,A41)') "### ERROR: limb darkening law for star ",
+     &                     "A should be one of: lin, quad, log, sqrt,"
+        write(6,'(A39,A41)') "### cub, pow2, 4par, qrep, lrep, srep, ",
+     &                     "crep, or h1h2.                           "
         STATUS = 1
       end if
-      if ( LDTYPE(2) < 0 ) then
-        write(6,'(A39,A41)') "### ERROR: LD law for star B should be ",
-     &                     "'lin' 'log' 'sqrt' 'quad' 'cub' or '4par'"
+      if ( LDTYPE(2) < -98 ) then
+        write(6,'(A39,A41)') "### ERROR: limb darkening law for star ",
+     &                     "B should be one of: lin, quad, log, sqrt,"
+        write(6,'(A39,A41)') "### cub, pow2, 4par, qrep, lrep, srep, ",
+     &                     "crep, h1h2, or sam.                      "
         STATUS = 1
       end if
       if ( STATUS /= 0 ) return
 
-      if ( LDTYPE(1)==6 .and. (LDTYPE(2)/=6 .and. LDTYPE(2)/=0 ) ) then
+      if ( LDTYPE(1)==9 .and. (LDTYPE(2)/=9 .and. LDTYPE(2)/=-1) ) then
         write(6,'(A39,A41)') "### ERROR: star A has four-parameter l ",
      &                     "imb darkening so star B must have too.   "
         STATUS = 1
       end if
-      if ( LDTYPE(1) /= 6 .and. LDTYPE(2) == 6 ) then
+      if ( LDTYPE(1) /= 9 .and. LDTYPE(2) == 9 ) then
         write(6,'(A39,A41)') "### ERROR: star B has four-parameter l ",
      &                     "imb darkening so star A must have too.   "
         STATUS = 1
       end if
       if ( STATUS /= 0 ) return
 
-      if ( LDTYPE(1) /= 6 ) then
+      if ( LDTYPE(1) /= 9 ) then
         CALL READFF (60,"LD-lin-A  ",-1.0d0, 2.0d0, V( 4),
      &                  "LD-lin-B  ",-1.0d0, 2.0d0, V( 5),STATUS)
-        if ( LDTYPE(2) == 0 ) V(5) = V(4)
+        if ( LDTYPE(2) == -1 ) V(5) = V(4)
         CALL READFF (60,"LDnonlin-A",-1.0d0, 2.0d0, V(21),
      &                  "LDnonlin-B",-1.0d0, 2.0d0, V(24),STATUS)
-        if ( LDTYPE(2) == 0 ) V(22) = V(21)
+        if ( LDTYPE(2) == -1 ) V(24) = V(21)
       end if
 
-      if ( LDTYPE(1) == 6 ) then
-        CALL READFF (60,"LDC-A-1   ",-1.0d0, 2.0d0, V( 4),
-     &                  "LDC-B-1   ",-1.0d0, 2.0d0, V( 5),STATUS)
-        CALL READFF (60,"LDC-A-2   ",-1.0d0, 2.0d0, V(21),
-     &                  "LDC-B-2   ",-1.0d0, 2.0d0, V(24),STATUS)
-        CALL READFF (60,"LDC-A-3   ",-1.0d0, 2.0d0, V(22),
-     &                  "LDC-B-3   ",-1.0d0, 2.0d0, V(25),STATUS)
-        CALL READFF (60,"LDC-A-4   ",-1.0d0, 2.0d0, V(23),
-     &                  "LDC-B-4   ",-1.0d0, 2.0d0, V(26),STATUS)
-        if ( LDTYPE(2) == 0 ) then
+      if ( LDTYPE(1) == 9 ) then
+        CALL READFF (60,"LDC-A-1   ",-9.0d0, 9.0d0, V( 4),
+     &                  "LDC-B-1   ",-9.0d0, 9.0d0, V( 5),STATUS)
+        CALL READFF (60,"LDC-A-2   ",-9.0d0, 9.0d0, V(21),
+     &                  "LDC-B-2   ",-9.0d0, 9.0d0, V(24),STATUS)
+        CALL READFF (60,"LDC-A-3   ",-9.0d0, 9.0d0, V(22),
+     &                  "LDC-B-3   ",-9.0d0, 9.0d0, V(25),STATUS)
+        CALL READFF (60,"LDC-A-4   ",-9.0d0, 9.0d0, V(23),
+     &                  "LDC-B-4   ",-9.0d0, 9.0d0, V(26),STATUS)
+        if ( LDTYPE(2) == -1 ) then
           V(5) = V(4)
           V(24) = V(21)
           V(25) = V(22)
           V(26) = V(23)
         end if
-!         print*, V(4),V(21),v(22),v(23)
-!         print*, V(5),V(24),v(25),v(26)
       end if
 
 !------------------------------------------------------------------------
 
-      CALL READFF (60,"REFLECTN-A", 0.0d0, 1.0d0, V(11),
-     &                "REFLECTN-B", 0.0d0, 1.0d0, V(12),STATUS)
+      CALL READFF (60,"REFLECTN-A",-1.0d9, 1.0d9, V(11),
+     &                "REFLECTN-B",-1.0d9, 1.0d9, V(12),STATUS)
       CALL READFF (60,"PHASESHIFT",-1.0d0, 1.0d0, V(16),
      &                "SCALEFACTR",-1.0d3, 1.0d3, V(17),STATUS)
 
@@ -993,7 +1053,7 @@
 
       if ( TASK >= 3 .and. TASK <= 9 ) then
         CALL READF (60, "PERIOD    ", 0.0d0, 1.0d6, V(19),STATUS)
-        CALL READF (60, "TIME-ZERO ",-1.0d4, 3.0d6, V(20),STATUS)
+        CALL READF (60, "TIME-ZERO ",-3.0d7, 3.0d7, V(20),STATUS)
       end if
 
       if ( TASK == 2 ) then
@@ -1040,7 +1100,7 @@
         CALLREAD2(60,"adj(_GD-A)","adj(_GD-B)",VARY( 9),VARY(10),STATUS)
         CALLREAD2(60,"adj(_SB-B)","adj(_L_3_)",VARY( 1),VARY(15),STATUS)
 
-        if ( LDTYPE(1) /= 6 ) then
+        if ( LDTYPE(1) /= 9 ) then
         CALLREAD2(60,"adj(LD-l1)","adj(LD-l1)",VARY( 4),VARY( 5),STATUS)
         CALLREAD2(60,"adj(LD-n2)","adj(LD-n2)",VARY(21),VARY(24),STATUS)
         else
@@ -1058,9 +1118,9 @@
         if ( STATUS /= 0 ) return
       end if
 
-      if ( LDTYPE(1) == 1 ) VARY(21) = 0
-      if ( LDTYPE(2) == 1 ) VARY(24) = 0
-      if ( LDTYPE(2) == 0 ) then
+      if ( LDTYPE(1) == 1 ) VARY(21) = 0              ! linear LD star A
+      if ( LDTYPE(2) == 1 ) VARY(24) = 0              ! linear LD star B
+      if ( LDTYPE(2) == -1 ) then               ! same LD for both stars
         VARY(5) = 0
         VARY(24) = 0
         VARY(25) = 0
@@ -1068,9 +1128,17 @@
       end if
 
       if ( VARY(20) == 1 .and. VARY(16) == 1 ) then
+        VARY(16) = 0
         write(6,'(A39,A41)') ">> TZERO and PSHIFT cannot both be adju",
      &                      "sted so adj(PSHIFT) has been set to zero."
-        VARY(16) = 0
+      end if
+
+      if ( V(13) < 0 .and. VARY(13) /= 0 ) then
+        write(6,'(A39,A41)') ">> The photometric mass ratio is equal t",
+     &                      "o or less than 0 so cannot be fitted.    "
+        VARY(13) = 0
+        write(6,'(A39,A41)') ">> Therefore its adjustment integer has ",
+     &                      "been set to zero.                        "
       end if
 
       if(TASK==3.or.TASK==4.or.TASK==5.or.TASK==7.or.TASK==8.or.TASK==9)
@@ -1174,9 +1242,9 @@
      &         "### ERROR reading in data for sine wave number ",NSINE+1
             STATUS = 1
           else
-            if ( NSINE >= 9 ) then
+            if ( NSINE >= 20 ) then
               write (6,'(A33,A47)') "## Warning: maximum number of sin",
-     &                 "e waves is 9. Any extra ones will be ignored.  "
+     &                 "e waves is 20. Any extra ones will be ignored. "
             else
               NSINE = NSINE + 1
               V(28+3*NSINE) = ARRAY(1)
@@ -1195,6 +1263,11 @@
               if ( WHICHPAR == "es" ) PSINE(NSINE) = 8
               if ( WHICHPAR == "L3" ) PSINE(NSINE) = 15
               if ( WHICHPAR == "sf" ) PSINE(NSINE) = 17
+              if ( WHICHPAR == "T0" ) PSINE(NSINE) = 20
+              if ( WHICHPAR == "KA" ) PSINE(NSINE) = 27
+              if ( WHICHPAR == "KB" ) PSINE(NSINE) = 28
+              if ( WHICHPAR == "VA" ) PSINE(NSINE) = 29
+              if ( WHICHPAR == "VB" ) PSINE(NSINE) = 30
               if ( WHICHPAR == "L1" ) PSINE(NSINE) = -1
               if ( WHICHPAR == "L2" ) PSINE(NSINE) = -2
 
@@ -1223,11 +1296,12 @@
               if ( PSINE(NSINE) == 0 ) then
                 write(6,'(A29,A40,A4)') "### ERROR: a valid sine wave ",
      &           "parameter has not been specified. It is ",PSINE(NSINE)
-                write(6,'(A33,A47)')"### and needs to be one of these:",
-     &                 " J, r1, r2, i, e, w, ec, es, L3, sf, L1 or L2  "
+                write (6,'(A27,A42,A42)') "### and needs to be one of ",
+     &                     "these parameters: J, r1, r2, i, e, w, ec, ",
+     &                     "es, L3, sf, T0, L1, L2, KA, KB, VA, or VB."
                 STATUS = 1
               else
-                write (6,'(A28,I1,A30,A2,A1)')
+                write (6,'(A28,I2,A30,A2,A1)')
      &                             ">> Read parameters for sine ",NSINE,
      &                     ', to be applied to parameter "',WHICHPAR,'"'
 !                 write (62,'(A25,I1,A30,A2,A1)')
@@ -1275,9 +1349,9 @@
             STATUS = 1
           else
 
-            if ( NPOLY >= 9 ) then
+            if ( NPOLY >= 50 ) then
               write (6,'(A33,A47)') "## Warning: maximum number of pol",
-     &                  "ynomials is 9. Any extra ones will be ignored"
+     &                "ynomials is 50. Any extra ones will be ignored."
             else
 
                   ! Add 1 to the number of polynomials.
@@ -1285,7 +1359,7 @@
                   ! Put the parameters and vary's into V and VARY
 
               NPOLY = NPOLY + 1
-              j = 49 + 9*NPOLY
+              j = 91 + 9*(NPOLY-1)
               V(j) = POLYPIV
               V(j+1) = POLYSTART
               V(j+2) = POLYSTOP
@@ -1314,6 +1388,11 @@
               if ( WHICHPAR == "es" ) PPOLY(NPOLY) = 8
               if ( WHICHPAR == "L3" ) PPOLY(NPOLY) = 15
               if ( WHICHPAR == "sf" ) PPOLY(NPOLY) = 17
+              if ( WHICHPAR == "T0" ) PPOLY(NPOLY) = 20
+              if ( WHICHPAR == "KA" ) PPOLY(NPOLY) = 27
+              if ( WHICHPAR == "KB" ) PPOLY(NPOLY) = 28
+              if ( WHICHPAR == "VA" ) PPOLY(NPOLY) = 29
+              if ( WHICHPAR == "VB" ) PPOLY(NPOLY) = 30
               if ( WHICHPAR == "L1" ) PPOLY(NPOLY) = -1
               if ( WHICHPAR == "L2" ) PPOLY(NPOLY) = -2
 
@@ -1342,16 +1421,17 @@
               if ( PPOLY(NPOLY) == 0 ) then
                 write(6,'(A30,A40,A4)')"### ERROR: a valid polynomial ",
      &           "parameter has not been specified. It is ",PPOLY(NPOLY)
-                write(6,'(A33,A47)')"### and needs to be one of these:",
-     &                 " J, r1, r2, i, e, w, ec, es, L3, sf, L1 or L2  "
+                write (6,'(A27,A42,A42)') "### and needs to be one of ",
+     &                     "these parameters: J, r1, r2, i, e, w, ec, ",
+     &                     "es, L3, sf, T0, L1, L2, KA, KB, VA, or VB."
                 STATUS = 1
               else
                 if ( POLYSTART < -9.9d9 ) then
-                  write (6,'(A34,I1,A30,A2,A1)')
+                  write (6,'(A34,I2,A30,A2,A1)')
      &                       ">> Read parameters for polynomial ",NPOLY,
      &                     ', to be applied to parameter "',WHICHPAR,'"'
                 else
-                  write (6,'(A34,I1,A30,A2,A28)')
+                  write (6,'(A34,I2,A30,A2,A28)')
      &                       ">> Read parameters for polynomial ",NPOLY,
      &                        ', to be applied to parameter "',WHICHPAR,
      &                                    '" over a given time interval'
@@ -1417,10 +1497,25 @@
             write(6,'(A35,A45)') "### ERROR reading in instructions f",
      &                  "or numerical integration.                    "
             STATUS = 1
-          end if
+          else
+            if ( NUMINT < 2 ) then
+              write(6,'(A35,A45)') "### ERROR reading instructions for",
+     &                  " numerical integration: NUMINT is less than 2"
+              STATUS = 1
+            end if
+            if ( NUMINT > 10 .and. NUMINT < 100 ) then
+              write(6,'(A35,A45)') "### Warning: NUMINT is more than 1",
+     &                  "0. This will slow JKTEBOP down significantly."
+            endif
+            if ( NUMINT >= 100 ) then
+              write(6,'(A35,A45)') "### ERROR with instructions for nu",
+     &                  "merical integration: NUMINT is more than 100."
+              STATUS = 1
+            end if
+         end if
 !-----------------------------------------------------------------------
         else if ( CHARHELP4 == "RV1" .or. CHARHELP4 == "rv1" ) then
-           read (CHARHELP200,*,iostat=ERROR) CHARHELP4,RV1OBSFILE,
+          read (CHARHELP200,*,iostat=ERROR) CHARHELP4,RV1OBSFILE,
      &                          RV1OUTFILE,V(27),V(29),VARY(27),VARY(29)
           if ( ERROR /= 0 ) then
             write(6,'(A35,A45)') "### ERROR reading in instructions f",
@@ -1439,7 +1534,7 @@
           end if
 !-----------------------------------------------------------------------
         else if ( CHARHELP4 == "RV2" .or. CHARHELP4 == "rv2" ) then
-           read (CHARHELP200,*,iostat=ERROR) CHARHELP4,RV2OBSFILE,
+          read (CHARHELP200,*,iostat=ERROR) CHARHELP4,RV2OBSFILE,
      &                          RV2OUTFILE,V(28),V(30),VARY(28),VARY(30)
           if ( ERROR /= 0 ) then
             write(6,'(A35,A45)') "### ERROR reading in instructions f",
@@ -1456,6 +1551,9 @@
      &                  "star B. The value should be -1, 0, 1, 2 or 3."
             STATUS = 1
           end if
+!-----------------------------------------------------------------------
+        else if ( CHARHELP4 == "NOFI" .or. CHARHELP4 == "nofi" ) then
+          NOFIT = 1
 !-----------------------------------------------------------------------
         end if
       end do
@@ -1476,9 +1574,9 @@
 
         if (TASK == 3 .or. TASK == 4) then
           CALL OPENFILE (63,"new","LC output ",LCFILE, STATUS)
-          if ( V(27) >= 0.0d0 ) CALL OPENFILE (65,"new","RV1 output",
+          if ( V(27) >= -1.0d9 ) CALL OPENFILE (65,"new","RV1 output",
      &                                                RV1OUTFILE,STATUS)
-          if ( V(28) >= 0.0d0 ) CALL OPENFILE (66,"new","RV2 output",
+          if ( V(28) >= -1.0d9 ) CALL OPENFILE (66,"new","RV2 output",
      &                                                RV2OUTFILE,STATUS)
           CALL OPENFILE (64,"new","model fit ",FITFILE,STATUS)
         end if
@@ -1498,28 +1596,31 @@
      &                               DTDATE(7:8),DTDATE(5:6),DTDATE(1:4)
         write (62,*)   " "
 
-        write(62,'(A32,A30)') "Input parameter file:           ", INFILE
-        write(62,'(A32,A30)') "Output parameter file:          ",PARFILE
-        if ( TASK == 3 .or. TASK == 4 ) write (62,'(A32,A30)')
+        write(62,'(A32,I1)')  "Task to perform:                ", TASK
+        write(62,'(A32,A50)') "Input parameter file:           ", INFILE
+        write(62,'(A32,A50)') "Output parameter file:          ",PARFILE
+        if ( TASK == 3 .or. TASK == 4 ) write (62,'(A32,A50)')
      &                        "Output model fit:               ",FITFILE
-        write(62,'(A32,A30)') "Input light curve data file:    ",OBSFILE
-        if ( V(27) >= 0.0d0 ) write (62,'(A32,A30)')
+        write(62,'(A32,A50)') "Input light curve data file:    ",OBSFILE
+        if ( V(27) >= -1.0d9 ) write (62,'(A32,A50)')
      &                     "Input RV data file for star A:  ",RV1OBSFILE
-        if ( V(28) >= 0.0d0 ) write (62,'(A32,A30)')
+        if ( V(28) >= -1.0d9 ) write (62,'(A32,A50)')
      &                     "Input RV data file for star B:  ",RV2OBSFILE
 
         if ( TASK == 3 .or. TASK == 4 ) then
-          write(62,'(A32,A30)')"Output light curve data file:   ",LCFILE
-          if ( V(27) >= 0.0d0 ) write(62,'(A32,A30)')
+          write(62,'(A32,A50)')"Output light curve data file:   ",LCFILE
+          if ( V(27) >= -1.0d9 ) write(62,'(A32,A50)')
      &                     "Output RV datafile for star A:  ",RV1OUTFILE
-          if ( V(28) >= 0.0d0 ) write(62,'(A32,A30)')
+          if ( V(28) >= -1.0d9 ) write(62,'(A32,A50)')
      &                     "Output RV datafile for star B:  ",RV2OUTFILE
         else if ( TASK == 5 ) then
-          write(62,'(A32,A30)')"Perturbed refit output file:    ",LCFILE
+          write(62,'(A32,A50)')"Perturbed refit output file:    ",LCFILE
         else if ( TASK == 7 ) then
-          write(62,'(A32,A30)')"Bootstrapping output file:      ",LCFILE
-        else if ( TASK == 8 .or. TASK == 9 ) then
-          write(62,'(A32,A30)')"Monte Carlo simulation file:    ",LCFILE
+          write(62,'(A32,A50)')"Bootstrapping output file:      ",LCFILE
+        else if ( TASK == 8 ) then
+          write(62,'(A32,A50)')"Monte Carlo simulation file:    ",LCFILE
+        else if ( TASK == 9 ) then
+          write(62,'(A32,A50)')"Residual-permutation sim file:  ",LCFILE
         end if
 
         write (62,*)   " "
@@ -1530,9 +1631,11 @@
             ! Enter flag into the DATERR array for the case of "chif"
 
       if ( TASK >= 3 .and. TASK <= 9 ) then
+        NDATA_NOTLC = NDATA
         CALL READDATA (1,OBSFILE,DATX,DATY,DATERR,DTYPE,NDATA,MAXDATA,
      &                 DATAFORM,STATUS)
         if ( STATUS /= 0 ) return
+        NDATA_LC = NDATA - NDATA_NOTLC
 
         if ( CHIFUDGE == 1 ) V(14) = -99.5d0
 
@@ -1541,12 +1644,12 @@
             ! is based on the assumption that the number of LC datapoint
             ! is greater than the number of RV1 or RV2 datapoints.
 
-        if ( TASK == 9 ) NSIM = NDATA - 1
+        if ( TASK == 9 ) NSIM = NDATA_LC - 1
 
-        if ( V(27) >= 0.0d0 ) CALL READDATA (7,RV1OBSFILE,DATX,DATY,
+        if ( V(27) >= -1.0d9 ) CALL READDATA (7,RV1OBSFILE,DATX,DATY,
      &                       DATERR,DTYPE,NDATA,MAXDATA,DATAFORM,STATUS)
 
-        if ( V(28) >= 0.0d0 ) CALL READDATA (8,RV2OBSFILE,DATX,DATY,
+        if ( V(28) >= -1.0d9 ) CALL READDATA (8,RV2OBSFILE,DATX,DATY,
      &                       DATERR,DTYPE,NDATA,MAXDATA,DATAFORM,STATUS)
       end if
 
@@ -1603,10 +1706,33 @@
       if ( NSINE > 0 ) write (62,'(A5,I2,A39)') "Read ",NSINE,
      &                         " sine wave datasets from the input file"
 
-      if ( NPOLY > 0 ) write(6,'(A7,I2,A40)') ">> Read ",NPOLY,
+      if ( NPOLY > 0 ) then
+        write(6,'(A8,I2,A40)') ">> Read ",NPOLY,
      &                        " polynomial datasets from the input file"
-      if ( NPOLY > 0 ) write (62,'(A5,I2,A40)') "Read ",NPOLY,
+        write (62,'(A5,I2,A40)') "Read ",NPOLY,
      &                        " polynomial datasets from the input file"
+        do i = 1,NPOLY
+          write (62,'(A11,I2,A36,$)') "Polynomial ",i,
+     &                            " will be applied to this parameter: "
+          if ( PPOLY(i) ==  1 ) write (62,'(A2)') "J "
+          if ( PPOLY(i) ==  2 ) write (62,'(A2)') "r1"
+          if ( PPOLY(i) ==  3 ) write (62,'(A2)') "r2"
+          if ( PPOLY(i) ==  6 ) write (62,'(A2)') "i "
+          if ( PPOLY(i) ==  7 ) write (62,'(A2)') "e "
+          if ( PPOLY(i) ==  7 ) write (62,'(A2)') "ec"
+          if ( PPOLY(i) ==  8 ) write (62,'(A2)') "w "
+          if ( PPOLY(i) ==  8 ) write (62,'(A2)') "es"
+          if ( PPOLY(i) == 15 ) write (62,'(A2)') "L3"
+          if ( PPOLY(i) == 17 ) write (62,'(A2)') "sf"
+          if ( PPOLY(i) == 20 ) write (62,'(A2)') "T0"
+          if ( PPOLY(i) == 27 ) write (62,'(A2)') "KA"
+          if ( PPOLY(i) == 28 ) write (62,'(A2)') "KB"
+          if ( PPOLY(i) == 29 ) write (62,'(A2)') "VA"
+          if ( PPOLY(i) == 30 ) write (62,'(A2)') "VB"
+          if ( PPOLY(i) == -1 ) write (62,'(A2)') "L1"
+          if ( PPOLY(i) == -2 ) write (62,'(A2)') "L2"
+        end do
+      end if
 
       if ( NUMINT > 1 ) write(6,'(A23,A43)') ">> Read instructions fo",
      &                    "r numerical integration from the input file"
@@ -1623,18 +1749,19 @@
 
       if ( NPOLY >= 1 ) then
         do i = 1,NPOLY
-          k = 49 + 9*i
+          k = 91 + 9*(i-1)
           IHELP = 0
           do j = 1,NDATA
             if ( DATX(j)>V(k+1) .and. DATX(j)<V(k+2) ) IHELP = IHELP + 1
           end do
           if ( IHELP < 1 ) then
             write(6,'(A1)') " "
-            write(6,'(A30,A48,I1,A1)') "## Warning: there are no datap",
-     &          "oints in the time interval given for polynomial ",i,"."
-            write(6,'(A36,A43)') "## This will probably cause the fit ",
-     &                     "routine to fail. Check input data and file."
+            write(6,'(A30,A47,I1,A1)') "### ERROR: there are no datapo",
+     &           "ints in the time interval given for polynomial ",i,"."
+            write(6,'(A36,A44)') "### This will cause the fitting rout",
+     &                    "ine to fail. Check the input data and file. "
             write(6,'(A1)') " "
+            STATUS = 1
           end if
         end do
       end if
@@ -1689,7 +1816,8 @@
           return
         end if
       end if
-                    ! Find reflection coefficients if they are not fixed
+
+                    ! Sort out radii as that there are two entry options
 
       if ( V(2) >= 0.0d0 ) then
         R1 = V(2) / (1.0d0 + V(3))
@@ -1698,12 +1826,16 @@
         R1 = abs(V(2))
         R2 = V(3)
       end if
-      MAG = GETMODEL (V,VARY,LDTYPE,NSINE,PSINE,NPOLY,PPOLY,V(20),1,LP,
-     &                                             LS,NUMINT,NINTERVAL)
-      if ( VARY(11) == -1 )  V(11) = 0.4d0 * (LS/(1.0d0-V(15))) * R1**2
-      if ( VARY(12) == -1 )  V(12) = 0.4d0 * (LP/(1.0d0-V(15))) * R2**2
+
+                    ! Find reflection coefficients if they are not fixed
 
       if ( TASK >= 3 .and. TASK <= 9 ) then
+
+        MAG = GETMODEL(V,VARY,LDTYPE,NSINE,PSINE,NPOLY,PPOLY,V(20),1,LP,
+     &                                              LS,NUMINT,NINTERVAL)
+        if ( VARY(11) == -1 ) V(11) = 0.4d0 * (LS/(1.0d0-V(15))) * R1**2
+        if ( VARY(12) == -1 ) V(12) = 0.4d0 * (LP/(1.0d0-V(15))) * R2**2
+
         do i = 11,12
 100       FORMAT (A4,I2,A37,I1,A36)
           if ( VARY(i) == -1 ) write (62,100)
@@ -1713,10 +1845,10 @@
      &                 "Adj(",i,") = -1 so reflection effect for star ",
      &                      i-10," is fixed at the input file value.   "
           if ( VARY(i) == 1 )  write (62,100)
-     &                 "Adj(",i,") = -1 so reflection effect for star ",
+     &                 "Adj(",i,") = +1 so reflection effect for star ",
      &                      i-10," is freely adjusted to the best fit. "
           if ( VARY(i) == 2 )  write (62,100)
-     &                 "Adj(",i,") = -1 so reflection effect for star ",
+     &                 "Adj(",i,") = +1 so reflection effect for star ",
      &                      i-10," is set to input value but perturbed."
         end do
 
@@ -1748,9 +1880,22 @@
             ! If LD of star B is forced to be same as star A, then set
             ! the (unused) LD of star B to be fixed to avoid problems.
 
-      if ( LDTYPE(2) == 0 ) then
+      if ( LDTYPE(2) == -1 ) then
         V(5) = V(4)
         VARY(5) = 0
+      end if
+
+            ! If no parameters should be fitted (because 'nofit' has
+            ! been specified) then put all the VARY integers to zero.
+
+      if ( NOFIT == 1) then
+        do i = 1,540
+          VARY(i) = 0
+        end do
+        write (6,*) " "
+        write (6,'(A38,A42)') "## Warning: 'nofit' has been specified",
+     &                    " so no parameters will be fitted.         "
+        write (6,*) " "
       end if
 
       END SUBROUTINE INPUT
@@ -1828,14 +1973,14 @@
       implicit none
       integer UNIT                  ! IN: number of unit to read from
       character NAME*10             ! IN: name of character to be read
-      character VALUE*30            ! OUT: value of the character
+      character VALUE*50            ! OUT: value of the character
       integer STATUS                ! IN/OUT: set to 1 if error occurs
       integer ERROR                 ! LOCAL: error flag for input
 
       ERROR = 0
       read (UNIT,*,iostat=ERROR) VALUE
       if ( ERROR /= 0 ) then
-        write(6,'(A29,A30)') "### ERROR reading the string ",NAME
+        write(6,'(A29,A50)') "### ERROR reading the string ",NAME
         STATUS = 1
       end if
       if ( VALUE == "#" ) then
@@ -1887,7 +2032,7 @@
       implicit none
       integer MAXDATA               ! IN: maximum number of datapoints
       character DATAFORM*1          ! IN: character length of MAXDATA
-      character*30 OBSFILE          ! IN: Name of input light curve file
+      character*50 OBSFILE          ! IN: Name of input light curve file
       integer WHICHDTYPE            ! IN: which type of data it is
       real*8 DATX(MAXDATA)          ! OUT: Data independent variable
       real*8 DATY(MAXDATA)          ! OUT: Data dependent variable
@@ -1896,7 +2041,9 @@
       integer NDATA                 ! OUT: Number of datapoints in total
       integer STATUS                ! IN/OUT: set to 1 if there is error
       integer NDATAIN               ! IN:    Number of datapoints before
-      integer i,ERROR,ERRFLAG       ! LOCAL: Loop counter + error flags
+      integer i,j,ERROR,ERRFLAG     ! LOCAL: Loop counter + error flags
+      integer N_NAN,N_LOW,N_HIGH    ! LOCAL: number of NaN, low or high
+      integer N_NANERR              ! LOCAL: number of NaNs in errorbars
       character*200 CHARHELP        ! LOCAL: Helper character string
       real*8 HELP1,HELP2,HELP3      ! LOCAL: Helper variables
 
@@ -1928,7 +2075,7 @@
       if ( ERROR /= 0 ) then
         read (CHARHELP,*,iostat=ERROR) HELP1,HELP2
         if ( ERROR /= 0 ) then
-          write(6,'(A48,A30)')
+          write(6,'(A48,A50)')
      &        "### ERROR: cannot understand first line of file ",OBSFILE
           STATUS = 1
           return
@@ -1945,9 +2092,12 @@
         else if ( ERRFLAG == 1 ) then
           read (61,*,iostat=ERROR) DATX(i),DATY(i),DATERR(i)
           if ( ERROR == 0 .and. DATERR(i) <= 0.0d0 ) then
-            write(6,'(A44,I'//DATAFORM//',A9,A30)')
+            j = i-NDATAIN
+            write(6,'(A44,I'//DATAFORM//',A9,A50)')
      &                   "### ERROR: found errorbar <= 0 for datapoint",
-     &                                     i-NDATAIN," in file ",OBSFILE
+     &                                             j," in file ",OBSFILE
+            write(6,'(A21,F16.7,1X,F15.7,1X,F15.7)')
+     &                "### Data values are: ", DATX(j),DATY(j),DATERR(j)
             STOP
           end if
         end if
@@ -1962,18 +2112,69 @@
       end if
 
       if ( ERRFLAG == 1 ) then
-        write (62,'(A5,I'//DATAFORM//',A39,A30)') "Read ",NDATA-NDATAIN,
+        write (62,'(A5,I'//DATAFORM//',A39,A50)') "Read ",NDATA-NDATAIN,
      &                 " datapoints (with errorbars) from file ",OBSFILE
-        write(6,'(A8,I'//DATAFORM//',A36,A30)')">> Read ",NDATA-NDATAIN,
+        write(6,'(A8,I'//DATAFORM//',A36,A50)')">> Read ",NDATA-NDATAIN,
      &                    " datapoints (with errors) from file ",OBSFILE
       else if  ( ERRFLAG == 0 ) then
-        write (62,'(A5,I'//DATAFORM//',A37,A30)') "Read ",NDATA-NDATAIN,
+        write (62,'(A5,I'//DATAFORM//',A37,A50)') "Read ",NDATA-NDATAIN,
      &                   " datapoints (no errorbars) from file ",OBSFILE
-        write(6,'(A8,I'//DATAFORM//',A37,A30)')">> Read ",NDATA-NDATAIN,
+        write(6,'(A8,I'//DATAFORM//',A37,A50)')">> Read ",NDATA-NDATAIN,
      &                   " datapoints (no errorbars) from file ",OBSFILE
       end if
 
       close (61)
+
+            ! Time to check if the input data make sense. Search for
+            ! three things: values less than -100 or more than +100
+            ! (for the magnitudes, not the RVs), and values or errorbars
+            ! that are NaN. The NaN values can be caught by requiring
+            ! datapoints to equal themselves - NaN by definition equal
+            ! no value (including themselves) so fail this test.
+            ! Added on 2022/12/05 for version 43 of the code.
+
+      N_NAN = 0
+      N_NANERR = 0
+      N_LOW = 0
+      N_HIGH = 0
+      do i = NDATAIN+1,MAXDATA
+        if ( DATY(i) <= -100.0 ) N_LOW = N_LOW + 1
+        if ( DATY(i) >= 100.0 ) N_HIGH = N_HIGH + 1
+        if ( DATY(i) /= DATY(i) ) N_NAN = N_NAN + 1
+        if ( DATERR(i) /= DATERR(i) ) N_NANERR = N_NANERR + 1
+      end do
+
+      if ( WHICHDTYPE == 1 ) then
+        if ( N_LOW >= 1 ) then
+          write (6,'(A1)') " "
+          write (6,'(A12,I'//DATAFORM//',A30,A30)') "## Warning: ",
+     &                          N_LOW, " datapoints are -100 or less. ",
+     &                                 " This very likely means that  "
+          write (6,'(A37,A43)') ">> the data are not in magnitude unit",
+     &                    "s. Please check input and output CAREFULLY."
+          write (6,'(A1)') " "
+        end if
+        if ( N_HIGH >= 1 ) then
+          write (6,'(A1)') " "
+          write (6,'(A12,I'//DATAFORM//',A30,A30)') "## Warning: ",
+     &                         N_HIGH, " datapoints are 100 or more.  ",
+     &                                 " This very likely means that  "
+          write (6,'(A37,A43)') ">> the data are not in magnitude unit",
+     &                    "s. Please check input and output CAREFULLY."
+          write (6,'(A1)') " "
+        end if
+      endif
+
+      if ( N_NAN >= 1 ) then
+        write (6,'(A17,I'//DATAFORM//',A30,A50)') "### ERROR: found ",
+     &                  N_NAN, " datapoints to be NaN in file ", OBSFILE
+        STATUS = 1
+      end if
+      if ( N_NANERR >= 1 ) then
+        write (6,'(A17,I'//DATAFORM//',A30,A50)') "### ERROR: found ",
+     &                N_NANERR, " errorbars to be NaN in file ", OBSFILE
+        STATUS = 1
+      end if
 
       END SUBROUTINE READDATA
 !=======================================================================
@@ -1982,7 +2183,7 @@
             ! successful and left unchanged if the action was successful
       implicit none
       integer UNIT                  ! IN: unit number to open file to
-      character*30 FILENAME         ! IN: name of datafile to open
+      character*50 FILENAME         ! IN: name of datafile to open
       character*10 FILE             ! IN: identifier of this datafile
       character*3 STATE             ! IN: "old" or "new"
       integer STATUS                ! OUT: indicates success of opening
@@ -1993,12 +2194,12 @@
       OPEN (unit=UNIT,file=FILENAME,status=STATE,iostat=ERROR)
 
       if ( ERROR /= 0 ) then
-        write(6,'(A18,A3,1X,A10,A8,A30)')
+        write(6,'(A18,A3,1X,A10,A8,A50)')
      &              "### ERROR opening ", STATE,FILE," file:  ",FILENAME
         STATUS = 1
       end if
 
-      if (STATE=="new".and.ERROR==0)  write(6,'(A10,A3,1X,A10,A8,A30)')
+      if (STATE=="new".and.ERROR==0)  write(6,'(A10,A3,1X,A10,A8,A50)')
      &                       ">> Opened ",STATE,FILE," file:  ",FILENAME
 
       END SUBROUTINE OPENFILE
@@ -2016,7 +2217,7 @@
       real*8 MOH,VMICRO             ! IN: Other parameters forthe tables
       character*20 CTEFF,CLOGG      ! LOCAL: character version of values
       character*20 CMOH,CMICRO      ! LOCAL: character version of values
-      character*30 OUTFILE          ! LOCAL: name of output file to make
+      character*50 OUTFILE          ! LOCAL: name of output file to make
 
       write(6,'(A40,$)') "Enter the effective temperature (K)  >> "
       read (*,*) TEFF
@@ -2059,25 +2260,26 @@
       SUBROUTINE TASK2 (V,LDTYPE,NSINE,PSINE,NPOLY,PPOLY)
                                           ! Produces a model light curve
       implicit none
-      real*8 V(138)                        ! IN: light  curve  parameters
-      integer VARY(138)                    ! IN: parameters vary or fixed
+      real*8 V(540)                       ! IN: light  curve  parameters
+      integer NSINE,PSINE(20)             ! IN: number sines, which pars
+      integer NPOLY,PPOLY(50)             ! IN: number polys, which pars
+      integer VARY(540)                   ! IN: parameters vary or fixed
       integer LDTYPE(2)                   ! IN: LD law type foreach star
-      integer i,ERROR                     ! LOCAL: counters & error flag
+      integer i                           ! LOCAL: loop counter
       real*8 MAG,LP,LS                    ! LOCAL: EBOP/GETMODEL  output
       real*8 PHASE                        ! LOCAL:  phase for evaluation
       real*8 GETMODEL                     ! FUNCTION: evaluate the model
-      integer NSINE                       ! OUT: Numbrs of sines and L3s
-      integer PSINE(9)                    ! OUT: Which par for each sine
-      integer NPOLY,PPOLY(9)              ! OUT: Similar for polynomials
       real*8 HJD                          ! LOCAL: time to calculate for
       real*8 R1,R2                        ! LOCAL: radii of the 2 stars
       integer NPHASE                      ! LOCAL: number of phases todo
+
+            ! NSINE=0 and NPOLY=0 and NUMINT=1 but don't need to do this
 
       V(19) = 1.0d0           ! Set period to 1.0
       V(20) = 0.0d0           ! Set Tzero to 0.0
       LP = 0.0d0
       LS = 0.0d0
-                                      ! NSINE=0 and NPOLY=0 and NUMINT=1
+
       if ( V(2) >= 0.0d0 ) then
         R1 = V(2) / (1.0d0 + V(3))
         R2 = V(2) / (1.0d0 + (1.0d0/V(3)))
@@ -2085,18 +2287,39 @@
         R1 = abs(V(2))
         R2 = V(3)
       end if
+
+            ! Sort out the reflection coefficients.
+
       MAG=GETMODEL(V,VARY,LDTYPE,0,PSINE,0,PPOLY,V(20),1,LP,LS,1,0.0d0)
-      V(11) = 0.4d0 * (LS/(1.0d0-V(15))) * R1**2
-      V(12) = 0.4d0 * (LP/(1.0d0-V(15))) * R2**2
+
+      if ( V(11) < -99.9 ) then
+        V(11) = 0.4d0 * (LS/(1.0d0-V(15))) * R1**2
+        write(6,'(A39,A41)') ">> The reflection coefficient for star ",
+     &                     "1 was calculated from the system geometry"
+      else
+        write(6,'(A39,A41)') ">> The reflection coefficient used for ",
+     &                     "star 1 was that given in the input file. "
+      end if
+
+      if ( V(12) < -99.9 ) then
+        V(12) = 0.4d0 * (LP/(1.0d0-V(15))) * R2**2
+        write(6,'(A39,A41)') ">> The reflection coefficient for star ",
+     &                     "1 was calculated from the system geometry"
+      else
+        write(6,'(A39,A41)') ">> The reflection coefficient used for ",
+     &                     "star 2 was that given in the input file. "
+      end if
+
+            ! We want 10000 phase points in most cases, but if one
+            ! component is very small we want a factor of 10 more.
 
       NPHASE = 10001
       if ( R1 < 0.01d0 .or. R2 < 0.01d0 ) NPHASE = 100001
 
-      write(6,'(A40,A40)') ">> The reflection coefficients come from",
-     &                      " the system geometry, not the input file"
+            ! Now calculate the light curve as a function of orbital
+            ! phase and write each point into the output file.
 
       write(62,'(A47)')"#  PHASE  MAGNITUDE    L1         L2         L3"
-
       do i = 1,NPHASE
         PHASE = (i-1) / dble(NPHASE-1)
         HJD = V(20) + PHASE * V(19)
@@ -2128,13 +2351,13 @@
       integer DTYPE(MAXDATA)              ! IN: type of each datapoint
       integer NDATA,MAXDATA               ! IN: number, max number of dp
       integer NLR,NMIN,NL3,NECW,NESW      ! IN: numbers of types of data
-      real*8 V(138)                        ! IN: light  curve  parameters
-      integer VARY(138)                    ! IN: parameters vary or fixed
-      real*8 VERR(138)                     ! SUB: parameter formal errors
+      real*8 V(540)                       ! IN: light  curve  parameters
+      integer VARY(540)                   ! IN: parameters vary or fixed
+      real*8 VERR(540)                    ! SUB: parameter formal errors
       integer LDTYPE(2)                   ! IN: LD law type foreach star
       integer ITER,IFAIL                  ! IN: number iterations + flag
-      integer NSINE,PSINE(9)              ! IN: Number of sines and pars
-      integer NPOLY,PPOLY(9)              ! IN: Number of polys and pars
+      integer NSINE,PSINE(20)             ! IN: Number of sines and pars
+      integer NPOLY,PPOLY(50)             ! IN: Number of polys and pars
       integer NUMINT                      ! IN: Number of numerical ints
       real*8  NINTERVAL                   ! IN: Time interval for numint
       real*8 CHISQ                        ! OUT: chi-square of model fit
@@ -2144,24 +2367,11 @@
       integer NLC,NRV1,NRV2               ! LOCAL: number of dataset dps
       integer i,j                         ! LOCAL: loop counters
       real*8 MAG,LP,LS                    ! LOCAL: EBOP, GETMODEL output
-      integer ERRITER                     ! LOCAL: number of fudges todo
       real*8 GETMODEL                     ! FUNCTION: evaluate the model
-
-            ! How many iterations are needed? Use one iteration if there
-            ! are no RVs. Use two if there are RVs but a circular orbit.
-            ! Go for three if there are RVs and an eccentric orbit.
-
-      if ( V(27) <= 0.0d0 .and. V(28) <= 0.0d0 ) then
-        ERRITER = 1
-      else if ( VARY(7) == 0 .and. VARY(8) == 0 ) then
-        ERRITER = 3
-      else
-        ERRITER = 5
-      end if
 
             ! First set up each iteration by zeroing the sum variables
 
-      do i = 1,ERRITER
+      do i = 1,9         ! Maximum of 9 iterations to avoid endless loop
         NLC = 0
         NRV1 = 0
         NRV2 = 0
@@ -2228,17 +2438,36 @@
             ! Then print out the CHISQ values and continue.
 
         CALL FITEBOP (DATX,DATY,DATERR,DTYPE,NDATA,MAXDATA,NLR,NMIN,V,
-     &              VARY,LDTYPE,ITER,CHISQ,VERR,IFAIL,NSINE,PSINE,
-     &              NPOLY,PPOLY,NL3,NECW,NESW,NUMINT,NINTERVAL)
+     &                VARY,LDTYPE,ITER,CHISQ,VERR,IFAIL,NSINE,PSINE,
+     &                NPOLY,PPOLY,NL3,NECW,NESW,NUMINT,NINTERVAL)
 
         if ( NLC >= 10 .or. NRV1 >= 5 .or. NRV2 >= 5 ) then
           write (6,'(A18,I1,A38,$)') ">> Done iteration ",i,
      &                          " to adjust errorbars. Chisqred values:"
           if ( NLC >= 10 ) write (6,'(1X,F7.3,$)') CHISQLC**2
-          if ( NRV1 >= 10 ) write (6,'(1X,F7.3,$)') CHISQRV1**2
-          if ( NRV2 >= 10 ) write (6,'(1X,F7.3,$)') CHISQRV2**2
+          if ( NRV1 >= 5 ) write (6,'(1X,F7.3,$)') CHISQRV1**2
+          if ( NRV2 >= 5 ) write (6,'(1X,F7.3,$)') CHISQRV2**2
           write (6,'(A1)') " "
         end if
+
+            ! Check if the relevant chisq values are sufficiently close
+            ! to 1.0 for good errorbars; exit loop if this is so.
+
+        if ( NLC >= 10 .and. NRV1 >= 5 .and. NRV2 >= 5 .and.
+     &       CHISQLC > 0.999 .and. CHISQLC < 1.001 .and.
+     &       CHISQRV1 > 0.999 .and. CHISQRV1 < 1.001 .and.
+     &       CHISQRV2 > 0.999 .and. CHISQRV2 < 1.001 ) exit
+
+        if ( NLC >= 10 .and. NRV1 >= 5 .and. NRV2 < 5 .and.
+     &       CHISQLC > 0.999 .and. CHISQLC < 1.001 .and.
+     &       CHISQRV1 > 0.999 .and. CHISQRV1 < 1.001 ) exit
+
+        if ( NLC >= 10 .and. NRV1 < 5 .and. NRV2 >= 5 .and.
+     &       CHISQLC > 0.999 .and. CHISQLC < 1.001 .and.
+     &       CHISQRV2 > 0.999 .and. CHISQRV2 < 1.001 ) exit
+
+        if ( NLC >= 10 .and. NRV1 < 5 .and. NRV2 < 5 .and.
+     &       CHISQLC > 0.999 .and. CHISQLC < 1.001 ) exit
 
       end do
 
@@ -2256,22 +2485,23 @@
       integer MAXDATA                     ! IN: max number of datapoints
       character DATAFORM*1                ! IN: MAXDATA character length
       integer TASK                        ! IN: which task to do
-      real*8 V(138)                        ! IN: light  curve  parameters
-      integer VARY(138)                    ! IN: parameters vary or fixed
+      real*8 V(540)                       ! IN: light  curve  parameters
+      integer VARY(540)                   ! IN: parameters vary or fixed
       integer LDTYPE(2)                   ! IN: LD law type foreach star
       real*8 DATX(MAXDATA)                ! IN: Data independent varible
       real*8 DATY(MAXDATA)                ! IN: Data dependent variable
       real*8 DATERR(MAXDATA)              ! IN: Data errorbars
       integer DTYPE(MAXDATA)              ! IN: type of each datapoint
       integer NDATA,NLR,NMIN              ! IN: number of  types of data
-      integer NSINE,NL3,NECW,NESW         ! IN: Numbers of sines and L3s
-      integer PSINE(9)                    ! IN: Which par for each sine
-      integer NPOLY,PPOLY(9)              ! IN: Similar for polynomials
+      integer NSINE,NL3                   ! IN: Numbers of sines and L3s
+      integer NECW,NESW                   ! IN: Numbers of ecosw & esinw
+      integer PSINE(20)                   ! IN: Which par for each sine
+      integer NPOLY,PPOLY(50)             ! IN: Similar for polynomials
       integer NUMINT                      ! IN: Number of numerical ints
       real*8  NINTERVAL                   ! IN: Time interval for numint
       real*8 SIGMA                        ! IN:  std. dev. for  clipping
       real*8 CHISQ                        ! SUB: chi-square of model fit
-      real*8 VERR(138)                     ! SUB: parameter formal errors
+      real*8 VERR(540)                    ! SUB: parameter formal errors
       real*8 OMC(MAXDATA)                 ! LOCAL: (O-C) residual values
       real*8 SIG                          ! LOCAL: rms of the O-C values
       real*8 RESIDSQSUM                   ! LOCAL: sum of resid. squares
@@ -2279,8 +2509,8 @@
       real*8 MAG,LP,LS                    ! LOCAL: EBOP/GETMODEL  output
       integer KEEP(MAXDATA),ACOUNT        ! LOCAL: Datapoint bookkeeping
       integer i,j                         ! LOCAL: loop counter
+      integer NREJ                        ! LOCAL: no of rejected values
       real*8 GETMODEL                     ! FUNCTION: evaluate the model
-      integer NREJ
 
       do i = 1,MAXDATA
         OMC(i) = 0.0d0
@@ -2449,24 +2679,25 @@
       implicit none
       integer MAXDATA                     ! IN: max number of datapoints
       character DATAFORM*1                ! IN: MAXDATA character length
-      real*8 V(138)                        ! IN: The light curve params
-      integer VARY(138)                    ! IN: Par adjustment integers
+      real*8 V(540)                       ! IN: The light curve params
+      integer VARY(540)                   ! IN: Par adjustment integers
       integer LDTYPE(2)                   ! IN: LD law type foreach star
       real*8 DATX(MAXDATA)                ! IN: Data independent varible
       real*8 DATY(MAXDATA)                ! IN: Data dependent variables
       real*8 DATERR(MAXDATA)              ! IN: Data errorbars
       integer DTYPE(MAXDATA)              ! IN: Type of each datapoint
       integer NDATA,NLR,NMIN              ! IN: Numbers of datapoints
-      integer NSINE,NL3,NECW,NESW         ! IN: Numbers of sines and L3s
-      integer PSINE(9)                    ! IN: Which par for each sine
-      integer NPOLY,PPOLY(9)              ! IN: Similar for polynomials
+      integer NSINE,NL3                   ! IN: Numbers of sines and L3s
+      integer NECW,NESW                   ! IN: Numbers of ecosw & esinw
+      integer PSINE(20)                   ! IN: Which par for each sine
+      integer NPOLY,PPOLY(50)             ! IN: Similar for polynomials
       integer NUMINT                      ! IN: Number of numerical ints
       real*8  NINTERVAL                   ! IN: Time interval for numint
       integer NUMVARY                     ! LOCAL: Number of vary params
-      integer VWHERE(138)                  ! LOCAL: Which parameters vary
-      real*8 VSTORE(138)                   ! LOCAL: Store best-fit params
+      integer VWHERE(540)                 ! LOCAL: Which parameters vary
+      real*8 VSTORE(540)                  ! LOCAL: Store best-fit params
       integer VARYFLAG                    ! LOCAL: Store a VARY integer
-      real*8 VERR(138),CHISQ               ! LOCAL: Output from FITEBOP
+      real*8 VERR(540),CHISQ              ! LOCAL: Output from FITEBOP
       integer i,j,k,IFAIL,ITER            ! LOCAL: Loop counters etc
 
       CALL OUTPUT (DATX,DATY,DATERR,DTYPE,NDATA,MAXDATA,DATAFORM,NLR,
@@ -2492,7 +2723,7 @@
 
       NUMVARY = 0
       j = 1
-      do i = 1,138
+      do i = 1,540
         if ( i /= 11 .and. i /= 12 ) then
           if ( VARY(i) /= 0 ) then
             NUMVARY = NUMVARY + 1
@@ -2502,7 +2733,7 @@
         end if
       end do
 
-      do i = 1,138
+      do i = 1,540
         VSTORE(i) = V(i)
       end do
 
@@ -2525,7 +2756,7 @@
 
       do i = 1,NUMVARY
         j = VWHERE(i)
-        do k = 1,138
+        do k = 1,540
           V(k) = VSTORE(k)
         end do
         j = VWHERE(i)
@@ -2536,7 +2767,7 @@
      &                 NLR,NMIN,V,VARY,LDTYPE,ITER,CHISQ,VERR,100+j,
      &           NSINE,PSINE,NPOLY,PPOLY,NL3,NECW,NESW,NUMINT,NINTERVAL)
 
-          do k = 0,80               ! GOAT
+          do k = 0,80
             if ( j == 6 ) V(j) = VSTORE(j) - 0.1d0*k
             if ( j /= 6 ) V(j) = VSTORE(j) * (1.0d0 - k/40.0d0)
             CALL FITEBOP (DATX,DATY,DATERR,DTYPE,NDATA,MAXDATA,NLR,NMIN,
@@ -2547,11 +2778,11 @@
      &                 PSINE,NPOLY,PPOLY,NL3,NECW,NESW,NUMINT,NINTERVAL)
           end do
 
-          do k = 1,138
+          do k = 1,540
             V(k) = VSTORE(k)
           end do
 
-          do k = 1,138
+          do k = 1,540
             if ( j == 6 ) V(j) = VSTORE(j) + 0.1d0*k
             if ( j /= 6 ) V(j) = VSTORE(j) * (1.0d0 + k/40.0d0)
             if ( j /= 6 .or. V(6) < 90.1d0 ) then
@@ -2618,25 +2849,26 @@
       integer MAXDATA               ! IN: maximum number of datapoints
       character DATAFORM*1          ! IN: character length of MAXDATA
       integer TASK                  ! IN: The task to undertake
-      real*8 V(138)                  ! IN: The photometric parameters
-      integer VARY(138)              ! IN: Parameter adjustment integers
+      real*8 V(540)                 ! IN: The photometric parameters
+      integer VARY(540)             ! IN: Parameter adjustment integers
       integer LDTYPE(2)             ! IN: Type of LD law for each star
       real*8 DATX(MAXDATA)          ! IN: Data independent variables
       real*8 DATY(MAXDATA)          ! IN: Data dependent variables
       real*8 DATERR(MAXDATA)        ! IN: Data errorbars
       integer DTYPE(MAXDATA)        ! IN: Types of observational data
       integer NDATA,NLR,NMIN        ! IN: Numbers of different datatypes
-      integer NSINE,NL3,NECW,NESW   ! IN: Numbers of sines and L3 values
-      integer PSINE(9)              ! IN: Which parameter for each sine
-      integer NPOLY,PPOLY(9)        ! IN: Similar for the polynomials
+      integer NSINE,NL3             ! IN: Numbers of sines and L3s
+      integer NECW,NESW             ! IN: Numbers of ecosw and esinw
+      integer PSINE(20)             ! IN: Which parameter for each sine
+      integer NPOLY,PPOLY(50)       ! IN: Similar for the polynomials
       integer NSIM                  ! IN: Number of simulations to do
       integer NUMINT                ! IN: Number of numerical integrat's
       real*8  NINTERVAL             ! IN: Time interval numerical integ.
       character PERTURB*1           ! LOCAL: Perturb params ('y' or 'n')
-      real*8 VERR(138)               ! SUB:   Param  formal uncertainties
-      real*8 DV(138)                 ! LOCAL: Perturbations for paramters
+      real*8 VERR(540)              ! SUB:   Param  formal uncertainties
+      real*8 DV(540)                ! LOCAL: Perturbations for paramters
       real*8 VEXTRA(18)             ! SUB:   Extra (dependent) parametrs
-      real*8 VALL(138,abs(NSIM))     ! SUB:   All the best-fitting params
+      real*8 VALL(540,abs(NSIM))    ! SUB:   All the best-fitting params
       real*8 VALLEXTRA(18,abs(NSIM))! SUB:   All extra (dependent) pars
       integer NVARY                 ! LOCAL: Number of varying parametrs
       integer ITER                  ! SUB:   Numberof fitting iterations
@@ -2644,28 +2876,36 @@
       real*8 INY(MAXDATA)           ! LOCAL: Synthetic obs to be fitted
       real*8 INERR(MAXDATA)         ! LOCAL: Synthetic obs to be fitted
       real*8 RESID(MAXDATA)         ! LOCAL: Residuals of the best fit
-      real*8 INV(138)                ! SUB:   Parameters of  synthetic LC
+      real*8 INV(540)               ! SUB:   Parameters of  synthetic LC
       real*8 INVEXTRA(18)           ! SUB:   Dependent parameter array
       real*8 CHISQ,ERRSIZELC        ! SUB:   Chi-squared of the best fit
       real*8 ERRSIZERV1,ERRSIZERV2  ! SUB:   Errorbar sizes for datasets
-      integer NPHOT                 ! LOCAL: Number of photometric datap
       integer SEEDSTART,SEED        ! FUNCTION: Start randomnumber maker
       real*8 RANDOMG                ! FUNCTION: Gaussian  random  number
       real*8 RANDOM                 ! FUNCTION: Flat-distrib  random num
       real*8 GETMODEL               ! FUNCTION: Gets  model  predictions
-      real*8 LP,LS,MAG              ! LOCAL: EBOP/GETMODEL output values
+      real*8 LP,LS                  ! LOCAL: EBOP/GETMODEL output values
       real*8 HELP1                  ! LOCAL: Useful variable storage
       integer i,j,k,m,ERROR         ! LOCAL: Loop counters + error flags
-      real*8 ECQPHASES(6)           ! SUB:  important orbital phases
-      character*5 NAME5(138),NAMEXTRA5(18)
-      character*19 NAME19(138),NAMEXTRA19(18)
-      integer DOPRINT(138)                 ! OUT: 1 to print fitted param
-      integer DOPRINTEXTRA(18)            ! OUT: 1 to print dependnt par
-      real*8 FITCHISQ               ! LOCAL:  chisq of original best fit
-      integer ILC(MAXDATA),IRV1(MAXDATA),IRV2(MAXDATA),ITMIN(MAXDATA)
-      real*8 RESIDSTORE,HELP2,HELP3,MODELVAL(MAXDATA)
-      integer ILCFIRST,ILCLAST,IRV1FIRST,IRV1LAST,IRV2FIRST,IRV2LAST
-      integer ITMINFIRST,ITMINLAST,NLC,NRV1,NRV2,NTMIN,IMOD
+      character*5 NAME5(540)        ! LOCAL: short names of parameters
+      character*5 NAMEXTRA5(18)     ! LOCAL: short names of extra params
+      character*19 NAME19(540)      ! LOCAL: long names of parameters
+      character*19 NAMEXTRA19(18)   ! LOCAL: long names of extra params
+      integer DOPRINT(540)          ! OUT:   1 to print fitted parameter
+      integer DOPRINTEXTRA(18)      ! OUT:   1 to print dependent param
+      real*8 FITCHISQ               ! LOCAL: chisq of original best fit
+      integer ILC(MAXDATA)          ! LOCAL: array indices of phot data
+      integer IRV1(MAXDATA)         ! LOCAL: array indices of RV1 data
+      integer IRV2(MAXDATA)         ! LOCAL: array indices of RV2 data
+      integer ITMIN(MAXDATA)        ! LOCAL: array i of times of minimum
+      real*8 HELP2,HELP3            ! LOCAL: helper variables
+      integer IMOD                  ! LOCAL: helper variable
+      real*8 MODELVAL(MAXDATA)      ! LOCAL: model value at data times
+      integer ILCFIRST,ILCLAST      ! LOCAL: where LC data are in array
+      integer IRV1FIRST,IRV1LAST    ! LOCAL: where RV1 data are in array
+      integer IRV2FIRST,IRV2LAST    ! LOCAL: where RV2 data are in array
+      integer ITMINFIRST,ITMINLAST  ! LOCAL: where tmin data arein array
+      integer NLC,NRV1,NRV2,NTMIN   ! LOCAL: numbers of types of data
 
       CALL GETNAME(V,NAME5,NAMEXTRA5,NAME19,NAMEXTRA19)
 
@@ -2680,14 +2920,15 @@
       else
         PERTURB = "y"
       end if
+      if (task == 9) perturb="n"
 
       CALL GET_DV(V,DV,NPOLY,PPOLY)
-      do i = 1,138
+      do i = 1,540
         DV(i) = DV(i) * 10.0d0
       end do
 
       if ( TASK == 5 ) then
-        do i = 1,138
+        do i = 1,540
           DV(i) = DV(i) * 5.0d0
         end do
       end if
@@ -2734,7 +2975,6 @@
         MODELVAL(i) = GETMODEL (V,VARY,LDTYPE,NSINE,PSINE,NPOLY,PPOLY,
      &                          DATX(i),DTYPE(i),LP,LS,NUMINT,NINTERVAL)
         RESID(i) = DATY(i) - MODELVAL(i)
-!         write(70,'(4(f20.10))')datx(i),daty(i),MODELVAL(i),resid(i)
       end do
 
       do i = 1,MAXDATA
@@ -2784,27 +3024,9 @@
         end if
       end do
 
-!       print*,"iLC:"
-!       do i=1,20
-!         print'(100(i5))',(ilc(30*(i-1)+j),j=1,30)
-!       enddo
-!       print*,"iTMIN:"
-!       do i=1,5
-!         print'(100(i5))',(itmin(30*(i-1)+j),j=1,30)
-!       enddo
-!       print*,"iRV1:"
-!       do i=1,5
-!         print'(100(i5))',(irv1(30*(i-1)+j),j=1,30)
-!       enddo
-!       print*,"iRV2:"
-!       do i=1,5
-!         print'(100(i5))',(irv2(30*(i-1)+j),j=1,30)
-!       enddo
-!       print*," "
-
             ! Write the column headings  for those individual simulation
             ! results to be output later.   The complication is that the
-            ! proliferation of parameters (now 138 fit pars and 18 depen-
+            ! proliferation of parameters (now 540 fit pars and 18 depen-
             ! dent pars) yields extensive output, of which a significant
             ! amount is unimportant because not all parameters are being
             ! varied at that point. Thus restrict the output to the pars
@@ -2813,7 +3035,7 @@
       CALL GETPRINTSIM (V,VARY,DOPRINT,DOPRINTEXTRA)
 
       write(63,'(A12,$)') "#   N  ITER "
-      do i = 1,138
+      do i = 1,540
         if ( DOPRINT(i) /= 0 ) write (63,'(7X,A5,A7,$)') NAME5(i),
      &                                                   "       "
       end do
@@ -2824,18 +3046,17 @@
 
       write (63,*) " "
 
-
             ! Start the random number generator. Calculate the number of
             ! variable params.  Store original data and best-fit params.
 
       SEED = SEEDSTART ()
 
       NVARY = 0
-      do i = 1,138
+      do i = 1,540
         if ( VARY(i) == 1 ) NVARY = NVARY + 1
       end do
 
-      do i = 1,138
+      do i = 1,540
         INV(i) = V(i)
       end do
 
@@ -2949,7 +3170,7 @@
 
       write(6,'(A13,$)') ">> Completed:"
 
-      do i = 1,abs(NSIM)             ! Loop over number  of  simulations
+      do i = 1,abs(NSIM)             ! Loop over number of simulations
 
 500     continue                     ! Enter here if previous sim failed
 
@@ -3005,7 +3226,7 @@
             ! points than the LC dataset, the residuals are cycled
             ! multiple times by using the modulus function.
 
-        if ( TASK == 9 ) then
+          if ( TASK == 9 ) then
 
           do j = 1,NDATA
             INX(j) = DATX(j)
@@ -3028,11 +3249,6 @@
             do j = NRV1-IMOD+1,NRV1
               INY(IRV1(j)) = MODELVAL(IRV1(j)) +RESID(IRV1(j+IMOD-NRV1))
             end do
-!           write(71,'(4(i5),a3,$)')i,j,NRV1,IMOD,"   "
-!           do k=1,20
-!             write (71,'(1x,f4.1,$)') iny(irv1(k))-MODELVAL(irv1(k))
-!           enddo
-!           write(71,*)" "
           end if
 
           if ( NRV2 >= 1 ) then
@@ -3045,14 +3261,6 @@
             end do
           end if
 
-!           write(71,'(3(i5,i5,1x),6(f10.5))')i,j,1,NLC-i,NLC-i+1,NLC,
-!      & iny(1)-MODELVAL(1),iny(2)-MODELVAL(2),iny(3)-MODELVAL(3),
-!      & iny(4)-MODELVAL(4),iny(5)-MODELVAL(5),iny(NLC)-MODELVAL(NLC)
-!
-!           do j=1,10
-!             write(72,'(i2,3(1x,f12.5))'),j,inx(j),iny(j),inerr(j)
-!           end do
-!           write(72,*)" "
         end if
 
             ! Now perturb the initial values of the fitted parameters
@@ -3063,7 +3271,7 @@
             ! If DV(i) > 0 then is it a multiplicative perturbation.
             ! If DV(i) < 0 then is it an additive perturbation.
 
-        do j = 1,138
+        do j = 1,540
           if ( (VARY(j)==1 .and. PERTURB=="y") .or. VARY(j)==2 ) then
             INV(j) = V(j) + (2.0d0*random(SEED)-1.0d0) * abs(DV(j))
           else
@@ -3076,7 +3284,7 @@
             ! Now fit the simulated light curve, then catch some failed
             ! iterations by checking for some of the  common  problems.
             ! Don't catch TASK9 problems - this actually causes further
-            ! attempts to fit *exactly( the same data, which inevitably
+            ! attempts to fit *exactly* the same data, which inevitably
             ! yield the same result, and so the code gets stuck redoing
             ! the same failed fit over and over again.
 
@@ -3086,12 +3294,25 @@
 
         if ( ERROR /= 0 )  GOTO 500
 
+            ! Now catch *very* bad fits where k < 0, or the linear LD
+            ! coefficients are < -5 or > +5, or the inclination is < 0
+            ! or > 180, or the CHISQ is really awful. Don't record them
+            ! except in the case of TASK9 (see above for the reason).
+
         if ( TASK /= 9 ) then
           if ( INV(3) <= 0.0d0 ) then
          write(6,'(A32,E12.5)')" Retry: V(3) is less than zero: ",INV(3)
             GOTO 500
           end if
-          if ( INV(6) < -360.0d0 .or. INV(6) > 720.0d0 ) then
+          if ( INV(4) < -5.0d0 .or. INV(4) > 5.0d0 ) then
+            write(6,'(A25,E12.5)') " Retry: V(4) is haywire: ",INV(4)
+            GOTO 500
+          end if
+          if ( INV(5) < -5.0d0 .or. INV(5) > 5.0d0 ) then
+            write(6,'(A25,E12.5)') " Retry: V(5) is haywire: ",INV(5)
+            GOTO 500
+          end if
+          if ( INV(6) < 0.0d0 .or. INV(6) > 180.0d0 ) then
             write(6,'(A25,E12.5)') " Retry: V(6) is haywire: ",INV(6)
             GOTO 500
           end if
@@ -3110,13 +3331,12 @@
             ! Now store the final fitted parameters and calculate the
             ! the dependent parameters for storage as well.
 
-        do j = 1,138
+        do j = 1,540
           VALL(j,i) = INV(j)
         end do
 
         CALL GETEXTRAS (INV,VARY,NDATA,LDTYPE,CHISQ,NSINE,PSINE,NPOLY,
      &                                  PPOLY,NUMINT,NINTERVAL,INVEXTRA)
-!         if ( DATERR(1) <= 0.0d0 ) INVEXTRA(8) = -999.0d0
         do j = 1,18
           VALLEXTRA(j,i) = INVEXTRA(j)
         end do
@@ -3124,7 +3344,7 @@
             ! Write the relevant results to the big output file.
 
         write(63,'(I5,1X,I3,$)') i,ITER
-        do j = 1,138
+        do j = 1,540
           if ( DOPRINT(j) /= 0 ) write(63,'(1X,f18.10,$)') INV(j)
         end do
         do j = 1,18
@@ -3168,7 +3388,7 @@
           end if
         end do
 
-        do i = 1,138
+        do i = 1,540
           V(i) = VALL(i,j)
         end do
         CHISQ = HELP1
@@ -3256,10 +3476,10 @@
 
       implicit none
       integer NSIM                  ! IN: The number of simulations done
-      real*8 V(138)                  ! IN: The photometric model paramtrs
-      integer VARY(138)              ! IN: Which parametrs fixed/adjusted
+      real*8 V(540)                 ! IN: The photometric model paramtrs
+      integer VARY(540)             ! IN: Which parametrs fixed/adjusted
       real*8 VEXTRA(18)             ! IN: Extra  (dependent)  parameters
-      real*8 VALL(138,abs(NSIM))     ! IN: All the best-fitting parametrs
+      real*8 VALL(540,abs(NSIM))    ! IN: All the best-fitting parametrs
       real*8 VALLEXTRA(18,abs(NSIM))! IN: All the extra (dependent) pars
       real*8 CONFINT                ! IN: Fractional confidence interval
       real*8 ARRAY(NSIM)            ! LOCAL: All results for one paramtr
@@ -3268,9 +3488,9 @@
       character*5 MESSAGE           ! LOCAL: Warning message
       integer i,j,k                 ! LOCAL: Loop counters
       real*8 SELLECT                ! FUNCTION: Gives nth array value
-      character*5 NAME5(138),NAMEXTRA5(18)
-      character*19 NAME19(138),NAMEXTRA19(18)
-      integer DOPRINT(138),DOPRINTEXTRA(18)
+      character*5 NAME5(540),NAMEXTRA5(18)
+      character*19 NAME19(540),NAMEXTRA19(18)
+      integer DOPRINT(540),DOPRINTEXTRA(18)
 
       CALL GETNAME(V,NAME5,NAMEXTRA5,NAME19,NAMEXTRA19)
 
@@ -3296,15 +3516,15 @@
             ! array and select the median and 1_sigma bounds (using the
             ! median +/- 0.5_sigma) and output to the parameter file.
 
-      do j = 1,156      ! Npar + Nextra = 138 + 18 = 156
+      do j = 1,558      ! Npar + Nextra = 540 + 18 = 566
 
-        if ( j <= 138 ) then
+        if ( j <= 540 ) then
           do k = 1,NSIM
             ARRAY(k) = mod(VALL(j,k),1.0d3)
           end do
         else
           do k = 1,NSIM
-            ARRAY(k) = mod(VALLEXTRA(j-138,k),1.0d3)
+            ARRAY(k) = mod(VALLEXTRA(j-540,k),1.0d3)
           end do
         end if
 
@@ -3323,13 +3543,13 @@
         CONFERR = 0.5d0 * abs(HELP3+HELP1)
 
         if ( CONFERR > 0.0d0 ) then
-          if ( j <= 138 ) then
+          if ( j <= 540 ) then
             if (DOPRINT(j)==1) write(62,101) j,NAME5(j),mod(V(j),1.0d3),
      &                      CONFERR,mod(HELP2,1.0d3),HELP3,HELP1,MESSAGE
             if (DOPRINT(j)==2) write(62,100) j,NAME5(j),mod(V(j),1.0d3),
      &              CONFERR,mod(HELP2,1.0d3),HELP3,HELP1,PERCENT,MESSAGE
           else
-            k = j - 138
+            k = j - 540
 
             if ( DOPRINTEXTRA(k) == 1 )     write (62,103) NAMEXTRA5(k),
      &                    mod(VEXTRA(k),1.0d3),CONFERR,mod(HELP2,1.0d3),
@@ -3360,9 +3580,9 @@
             ! ndent variables to print out  for each simulation, for the
             ! tasks 5, 7, 8 and 9. Itis called from subroutine TASK5789.
       implicit none
-      real*8 V(138)                        ! IN:  Fitted parameters
-      integer VARY(138)                    ! IN:  Par adjustment integers
-      integer DOPRINT(138)                 ! OUT: 0 or 1 or 2 (see below)
+      real*8 V(540)                       ! IN:  Fitted parameters
+      integer VARY(540)                   ! IN:  Par adjustment integers
+      integer DOPRINT(540)                ! OUT: 0 or 1 or 2 (see below)
       integer DOPRINTEXTRA(18)            ! OUT: 0 or 1 or 2 (see below)
       integer i                           ! LOCAL: loop counter
 
@@ -3370,14 +3590,14 @@
             ! 1: print out this parameter
             ! 2: print out and give percentage error in OUTPUTSIM
 
-      do i = 1,138
+      do i = 1,540
         DOPRINT(i) = 0
       end do
       do i = 1,18
         DOPRINTEXTRA(i) = 0
       end do
 
-      do i = 1,138
+      do i = 1,540
         if ( VARY(i) /= 0 ) then
           DOPRINT(i) = 1
           if ( i==2 .or. i==3 .or. i==27 .or. i==28 ) DOPRINT(i) = 2
@@ -3407,7 +3627,7 @@
 
       DOPRINTEXTRA(8) = 1
 
-      if ( V(27) > 0.0d0 .and. V(28) > 0.0d0 ) then
+      if ( V(27) > -1.0d9 .and. V(28) > -1.0d9 ) then
         DOPRINTEXTRA(9) = 1                             ! semimajor axis
         DOPRINTEXTRA(10) = 1                                ! mass ratio
         do i = 11,14
@@ -3445,46 +3665,66 @@
       real*8 DATY(MAXDATA)                ! IN: Data dependent variables
       real*8 DATERR(MAXDATA)              ! IN: Data errorbars
       integer DTYPE(MAXDATA)              ! IN: Type of  each data point
-      real*8 V(138),VERR(138)               ! IN: Parameters  and  errors
-      integer VARY(138)                    ! IN: Par adjustment  integers
+      real*8 V(540),VERR(540)             ! IN: Parameters  and  errors
+      integer VARY(540)                   ! IN: Par adjustment  integers
       integer NDATA,NLR,NMIN              ! IN: Numbers  of  data points
-      integer NSINE,NL3,NECW,NESW         ! IN: Number of  sines and L3s
-      integer PSINE(9)                    ! IN: Which par  for each sine
-      integer NPOLY,PPOLY(9)              ! IN: Similar  for polynomials
+      integer NSINE,NL3                   ! IN: Numbers of sines and L3s
+      integer NECW,NESW                   ! IN: Numbers of ecosw & esinw
+      integer PSINE(20)                   ! IN: Which par  for each sine
+      integer NPOLY,PPOLY(50)             ! IN: Similar  for polynomials
       integer NUMINT                      ! IN: Number of numerical ints
       real*8  NINTERVAL                   ! IN: Time interval for numint
       integer LDTYPE(2)                   ! IN: LD law type foreach star
       integer ITER                        ! IN: number of fit iterations
       real*8 CHISQ                        ! IN:   chi-squared of the fit
-      integer NVARY,VWHERE(138)            ! LOCAL: which parameters vary
-      character*5 NAME5(138)               ! GETIN: short parameter names
+      integer NVARY,VWHERE(540)           ! LOCAL: which parameters vary
+      character*5 NAME5(540)              ! GETIN: short parameter names
       character*5 NAMEXTRA5(18)           ! GETIN: short extra par names
-      character*19 NAME19(138)             ! GETIN: long  parameter names
+      character*19 NAME19(540)            ! GETIN: long  parameter names
       character*19 NAMEXTRA19(18)         ! GETIN: long  extra par names
       real*8 ECC,OMEGA,ECOSW,ESINW        ! LOCAL: orbital    parameters
       real*8 R1,R2,R12,RRAT               ! LOCAL: fractional star radii
       real*8 RESIDSQSUM,SE                ! LOCAL: sum resids^2, std.err
-      real*8 LTOTAL                       ! LOCAL: total light of system
       real*8 A,B,EPSLN1,EPSLN2,EPSLN      ! LOCAL: stellar shape  params
       real*8 MAG,LP,LS,HJD                ! LOCAL: LIGHT subroutine pars
-      real*8 PHASE,HELP,HELP2             ! LOCAL: some useful variables
+      real*8 PHASE,HELP                   ! LOCAL: some useful variables
       real*8 OMC(MAXDATA)                 ! LOCAL: observed minus calc'd
       real*8 LIMBRIGHT                    ! LOCAL: total limb brightness
       real*8 UNINTMAG                     ! LOCAL: unintegrated magntude
       integer NPHASE                      ! LOCAL: number phases to plot
-      character MESSAGE1*19, MESSAGE2*18  ! LOCAL: mesages to go to file
+      character MESSAGE2*19               ! LOCAL: message to go to file
       real*8 ECQPHASES(6)                 ! LOCAL: important orbitphases
       integer i,j,k,ERROR,STATUS          ! LOCAL: counters & errorflags
       real*8 GETPHASE                     ! FUNCTION: calc orbital phase
       real*8 GETMODEL                     ! FUNCTION: calcs model output
-      real*8 CHISQLC,CHISQLR,CHISQMIN,CHISQL3
-      real*8 CHISQECW,CHISQESW,CHISQRV1,CHISQRV2
-      real*8 RES2SUMLC,RES2SUMLR,RES2SUMMIN,RES2SUML3
-      real*8 RES2SUMECW,RES2SUMESW,RES2SUMRV1,RES2SUMRV2
-      integer NLC,NRV1,NRV2
-      real*8 RV1,RV2,VEXTRA(18)
-      integer NOPRINT
+      real*8 CHISQLC,CHISQLR              ! LOCAL: chisq of LCs, and LRs
+      real*8 CHISQMIN,CHISQL3             ! LOCAL: chisq of tmin and L3s
+      real*8 CHISQECW,CHISQESW            ! LOCAL: chisq of ecosw, esinw
+      real*8 CHISQRV1,CHISQRV2            ! LOCAL: chisq of the  RV sets
+      real*8 RES2SUMLC,RES2SUMLR          ! LOCAL: sum-squared of resids
+      real*8 RES2SUMMIN,RES2SUML3         ! LOCAL: sum-squared of resids
+      real*8 RES2SUMECW,RES2SUMESW        ! LOCAL: sum-squared of resids
+      real*8 RES2SUMRV1,RES2SUMRV2        ! LOCAL: sum-squared of resids
+      integer NLC,NRV1,NRV2               ! LOCAL: number of LCs and RVs
+      real*8 RV1,RV2                      ! LOCAL: RVs of the two stars
+      real*8 VEXTRA(18)                   ! GETIN: additional quantities
+      integer NOPRINT                     ! LOCAL: flags what to output
+      real*8 DEG2RAD,PI                   ! LOCAL: useful constants
+      real*8 SINI,COS2I                   ! LOCAL: sin and cos-sq of inc
+      real*8 ETERM,ETERM2,BTERM           ! LOCAL: equation calculations
+      real*8 PRIDUR,SECDUR                ! LOCAL: durations of eclipses
+      real*8 OMC_HI1,OMC_HI2,OMC_LO1      ! LOCAL: OMC extremum helper..
+      real*8 OMC_LO2,SIG_HI1,SIG_HI2      ! LOCAL:   .. finder variables
+      real*8 SIG_LO1,SIG_LO2,SIGMA        ! LOCAL: and sigma value.
+      integer iOMC_HI1,iOMC_HI2,iOMC_LO1  ! LOCAL: OMC extremum helper..
+      integer iOMC_LO2,iSIG_HI1,iSIG_HI2  ! LOCAL:  .. finder array ..
+      integer iSIG_LO1,iSIG_LO2           ! LOCAL:  .. indices.
 
+      DEG2RAD = 45.0d0 / atan(1.0d0)
+      PI = atan(1.0d0) * 4.0d0
+
+      ERROR = 0
+      STATUS = 0
       NLC = 0
       NRV1 = 0
       NRV2 = 0
@@ -3526,7 +3766,7 @@
             ! Find the number of variable parameters
 
       NVARY = 0
-      do i = 1,138
+      do i = 1,540
         if ( VARY(i) == 1 .or. VARY(i) == 3 ) NVARY = NVARY + 1
       end do
 
@@ -3568,47 +3808,50 @@
       if ( WHAT == 0 .or. WHAT == 1 .or. WHAT == 2 .or. WHAT == 3 ) then
         if ( V(6) > 90.0d0 )  V(6) = 180.0d0 - V(6)
         if ( V(6) < 0.0d0 ) V(6) = V(6) + 180.0d0
-        if ( LDTYPE(2) == 0 ) then
+        if ( LDTYPE(2) == -1 ) then
           V(5) = V(4)
           VERR(5) = VERR(4)
         end if
 
-        do i = 1,138
-          MESSAGE2 = "                  "
+        do i = 1,540
+          MESSAGE2 = "                   "
           if ( WHAT == 0 .and. (VARY(i) == 1 .or. VARY(i) == 3) )
-     &                                   MESSAGE2 = "   (adjusted)     "
+     &                                  MESSAGE2 = "   (adjusted)      "
           if ( WHAT == 1 .and. (VARY(i) == 0 .or. VARY(i) == 2) )
-     &                                   MESSAGE2 = "   (fixed)        "
-          if ( i==11 .and. VARY(i)==-1)  MESSAGE2 = "   (from geometry)"
-          if ( i==12 .and. VARY(i)==-1)  MESSAGE2 = "   (from geometry)"
-          if ( i==30 .and. VARY(i)==-1)  MESSAGE2 = "   (same as starA)"
+     &                                  MESSAGE2 = "   (fixed)         "
+          if ( i==11 .and. VARY(i)==-1) MESSAGE2 = "   (from geometry) "
+          if ( i==12 .and. VARY(i)==-1) MESSAGE2 = "   (from geometry) "
+          if ( i==30 .and. VARY(i)==-1) MESSAGE2 = "   (same as star A)"
 
             ! Now check for specific parameters which do not need to be
             ! outputted. Check every parameter included in the fit.
 
-            ! V(14) is tidal lead-lag angle which JKTEBOP does not bother with.
+            ! V(14) is tidal lead-lag angle - JKTEBOP ignores this.
             ! V(27) and V(29) are velocity amplitudes
             ! V(21) to V(26) are nonlinear LD coefficients
-            ! V(57+9*NPOLY) are the start times of the polynomials
-            ! V(66+9*NPOLY) are the end times of the polynomials
+            ! V(27) to V(30) are velocity parameters (K1,K2,Vsys1,Vsys2)
+            ! V(31-90) are sine curve parameters (T0, period, amplitude)
+            ! V(91-540) are poly (pivot,Tstart,Tend,const,x,x2,x3,x4,x5)
 
-          if ( i <= 30+3*NSINE .or. (i>=58 .and. i<=57+9*NPOLY)) then
+          if ( i <= 30+3*NSINE .or. (i>=91 .and. i<=90+9*NPOLY)) then
             NOPRINT = 0
 
             if ( i == 14 ) NOPRINT = 1
-            if ( (i == 27 .or. i == 29) .and. V(27) < 0.0d0) NOPRINT = 1
-            if ( (i == 28 .or. i == 30) .and. V(28) < 0.0d0) NOPRINT = 1
+            if ( (i == 27 .or. i == 29) .and. V(27) < -1.d9) NOPRINT = 1
+            if ( (i == 28 .or. i == 30) .and. V(28) < -1.d9) NOPRINT = 1
             if ( LDTYPE(1) == 1 .and. i >= 21 .and. i <= 23) NOPRINT = 1
-            if ( LDTYPE(1) /= 6 .and. i >= 22 .and. i <= 23) NOPRINT = 1
+            if ( LDTYPE(1) /= 9 .and. i >= 22 .and. i <= 23) NOPRINT = 1
             if ( LDTYPE(2) == 1 .and. i >= 24 .and. i <= 26) NOPRINT = 1
-            if ( LDTYPE(2) >= 2 .and. LDTYPE(2) <= 5 .and. i >= 25 .and.
+            if ( LDTYPE(2) >= 2 .and. LDTYPE(2) <= 6 .and. i >= 25 .and.
      &                                             i <= 26 ) NOPRINT = 1
-            if ( LDTYPE(2) == 0 ) then
+            if ( LDTYPE(2) >= -6 .and. LDTYPE(2) <= -2 .and. i >= 25
+     &                                       .and. i <= 26 ) NOPRINT = 1
+            if ( LDTYPE(2) == -1 ) then
               if ( LDTYPE(1)==1 .and. i >= 24 .and. i <= 26) NOPRINT = 1
-              if ( LDTYPE(1)/=6 .and. i >= 25 .and. i <= 26) NOPRINT = 1
+              if ( LDTYPE(1)/=9 .and. i >= 25 .and. i <= 26) NOPRINT = 1
             end if
             do j = 1,NPOLY
-              k = 49 + 9*j
+              k = 91 + 9*(j-1)
               if ( i == k+1 .and. V(k+1) <= -9.9d9 ) NOPRINT = 1
               if ( i == k+2 .and. V(k+2) >= 9.9d9 ) NOPRINT = 1
             end do
@@ -3631,23 +3874,36 @@
 
         end do
 
-116   FORMAT ("Limb darkening law for primary star:       ",A16)
-117   FORMAT ("Limb darkening law for secondary star:     ",A16)
+116   FORMAT ("Limb darkening law for primary star:       ",A19)
+117   FORMAT ("Limb darkening law for secondary star:     ",A19)
 
         write (62,*) " "
-        if ( LDTYPE(1) == 1 ) write (62,116) "linear          "
-        if ( LDTYPE(1) == 2 ) write (62,116) "logarithmic     "
-        if ( LDTYPE(1) == 3 ) write (62,116) "square-root     "
-        if ( LDTYPE(1) == 4 ) write (62,116) "quadratic       "
-        if ( LDTYPE(1) == 5 ) write (62,116) "cubic           "
-        if ( LDTYPE(1) == 6 ) write (62,116) "four-parameter  "
-        if ( LDTYPE(2) == 0 ) write (62,117) "same as primary "
-        if ( LDTYPE(2) == 1 ) write (62,117) "linear          "
-        if ( LDTYPE(2) == 2 ) write (62,117) "logarithmic     "
-        if ( LDTYPE(2) == 3 ) write (62,117) "square-root     "
-        if ( LDTYPE(2) == 4 ) write (62,117) "quadratic       "
-        if ( LDTYPE(2) == 5 ) write (62,117) "cubic           "
-        if ( LDTYPE(2) == 6 ) write (62,117) "four-parameter  "
+        if ( LDTYPE(1) ==  1 ) write (62,116) "linear             "
+        if ( LDTYPE(1) ==  2 ) write (62,116) "quadratic          "
+        if ( LDTYPE(1) ==  3 ) write (62,116) "logarithmic        "
+        if ( LDTYPE(1) ==  4 ) write (62,116) "square-root        "
+        if ( LDTYPE(1) ==  5 ) write (62,116) "cubic              "
+        if ( LDTYPE(1) ==  6 ) write (62,116) "power-2            "
+        if ( LDTYPE(1) ==  9 ) write (62,116) "four-parameter     "
+        if ( LDTYPE(1) == -2 ) write (62,116) "quadratic re-par   "
+        if ( LDTYPE(1) == -3 ) write (62,116) "logarithmic re-par "
+        if ( LDTYPE(1) == -4 ) write (62,116) "square-root re-par "
+        if ( LDTYPE(1) == -5 ) write (62,116) "cubic re-parameter "
+        if ( LDTYPE(1) == -6 ) write (62,116) "power-2 (h1 and h2)"
+
+        if ( LDTYPE(2) ==  1 ) write (62,116) "linear             "
+        if ( LDTYPE(2) ==  2 ) write (62,116) "quadratic          "
+        if ( LDTYPE(2) ==  3 ) write (62,116) "logarithmic        "
+        if ( LDTYPE(2) ==  4 ) write (62,116) "square-root        "
+        if ( LDTYPE(2) ==  5 ) write (62,116) "cubic              "
+        if ( LDTYPE(2) ==  6 ) write (62,116) "power-2            "
+        if ( LDTYPE(2) ==  9 ) write (62,116) "four-parameter     "
+        if ( LDTYPE(2) == -2 ) write (62,116) "quadratic re-par   "
+        if ( LDTYPE(2) == -3 ) write (62,116) "logarithmic re-par "
+        if ( LDTYPE(2) == -4 ) write (62,116) "square-root re-par "
+        if ( LDTYPE(2) == -5 ) write (62,116) "cubic re-parameter "
+        if ( LDTYPE(2) == -6 ) write (62,116) "power-2 (h1 and h2)"
+        if ( LDTYPE(2) == -1 ) write (62,117) "same as primary    "
 
             ! Now check to see if the limb darkening coefficients are
             ! physically possible or reasonable, and print a warning
@@ -3656,21 +3912,27 @@
 
         if ( LDTYPE(1) == 1 ) then
           LIMBRIGHT = 1.0d0 - V(4)
-        else if ( LDTYPE(1) >= 2 .or. LDTYPE(1) >= 5 ) then
+        else if ( LDTYPE(1) >= 2 .and. LDTYPE(1) <= 5 ) then
           LIMBRIGHT = 1.0d0 - V(4) - V(21)
+        else if ( LDTYPE(1) >= -5 .and. LDTYPE(1) <= -2 ) then
+          LIMBRIGHT = 0.5d0   !!! SORT THIS OUT LATER !!!
         else if ( LDTYPE(1) == 6 ) then
+          LIMBRIGHT = V(4)
+         else if ( LDTYPE(1) == -6 ) then
+          LIMBRIGHT = 1.0d0 - V(4) + V(21)
+        else if ( LDTYPE(1) == 9 ) then
           LIMBRIGHT = 1.0d0 - V(4) - V(21) - V(22) - V(23)
         else
           write (6,*) '### ERROR: LDTYPE(1) is wrong: ',LDTYPE(1)
           STOP
         end if
-        if ( LIMBRIGHT > 1.0d0 ) then
+        if ( LIMBRIGHT > 1.0d0 .and. LDTYPE(1) /= 9 ) then
           write (62,*) " "
           write (62,105) "## Warning: the total limb darkening at ",
      &                   "the limb of star A is less than 0.0, so "
           write (62,105) "## the limb darkening coefficient(s) for",
      &                   " this star are physically unrealistic.  "
-        else if ( LIMBRIGHT < 0.0d0 ) then
+        else if ( LIMBRIGHT < 0.0d0 .and. LDTYPE(1) /= 9 ) then
           write (62,*) " "
           write (62,105) "## Warning: the total limb darkening at ",
      &                   "the limb of star A is greater than 1.0, "
@@ -3680,35 +3942,32 @@
 
         if ( LDTYPE(2) == 1 ) then
           LIMBRIGHT = 1.0d0 - V(5)
-        else if ( LDTYPE(2) >= 2 .or. LDTYPE(2) >= 5 ) then
+        else if ( LDTYPE(2) >= 2 .and. LDTYPE(2) <= 5 ) then
           LIMBRIGHT = 1.0d0 - V(5) - V(24)
+        else if ( LDTYPE(2) >= -5 .and. LDTYPE(2) <= -2 ) then
+          LIMBRIGHT = 0.5d0   !!! SORT THIS OUT LATER !!!
         else if ( LDTYPE(2) == 6 ) then
+          LIMBRIGHT = V(5)
+         else if ( LDTYPE(2) == -6 ) then
+          LIMBRIGHT = 1.0d0 - V(5) + V(24)
+        else if ( LDTYPE(2) == 9 ) then
           LIMBRIGHT = 1.0d0 - V(5) - V(24) - V(25) - V(26)
         else
-          if ( LDTYPE(2) /= 0 ) then
+          if ( LDTYPE(2) /= -1 ) then
             write (6,*) '### ERROR: LDTYPE(2) is wrong: ',LDTYPE(2)
             STOP
           end if
         end if
-        if ( LIMBRIGHT < 0.0d0 ) then
+        if ( LIMBRIGHT < 0.0d0 .and. LDTYPE(2) /= 9  ) then
           write (62,105) "## Warning: the total limb darkening at ",
      &                   "the limb of star B is less than 0.0, so "
           write (62,105) "## the limb darkening coefficient(s) for",
      &                   " this star are physically unrealistic.  "
-        else if ( LIMBRIGHT > 1.0d0 ) then
+        else if ( LIMBRIGHT > 1.0d0 .and. LDTYPE(2) /= 9  ) then
           write (62,105) "## Warning: the total limb darkening at ",
      &                   "the limb of star B is more than 1.0, so "
           write (62,105) "## the limb darkening coefficient(s) for",
      &                   " this star are physically unlikely.     "
-        end if
-
-        if ( WHAT == 0 .and. (LDTYPE(1) == 2 .or. LDTYPE(2) == 2 .or.
-     &                       LDTYPE(1) == 5 .or. LDTYPE(2) == 5 ) ) then
-          write (62,*) " "
-          write (62,105) "## Warning: the logarithmic, cubic, and ",
-     &                   "four-par limb darkening law flux normal-"
-          write (62,105) "isations are only approximate. Don't tru",
-     &                   "st them if your star is quite distorted."
         end if
 
         write (62,*) " "
@@ -3761,7 +4020,28 @@
         write(62,102) "Impact parameter (primary eclipse): ",VEXTRA(6)
         write(62,102) "Impact paramtr (secondary eclipse): ",VEXTRA(7)
 
+            ! If the ratio of the radii is small then calculate the
+            ! durations of primary and secondary eclipse using equation
+            ! 15 from Kipping (2010MNRAS.407..301K), as expanded by
+            ! Matson et al (2016AJ....151..139M), equations 25 and 26.
+
         CALL GETEOMEGA (V(7),V(8),ECC,OMEGA,ECOSW,ESINW)
+
+        if ( RRAT <= 0.2 ) then
+          SINI = sin( V(6) / DEG2RAD )
+          COS2I = cos( V(6) / DEG2RAD )**2
+          ETERM = (1.0d0 - ECC**2) / (1.0d0 + ESINW)
+          ETERM2 = (1.0d0 - ECC**2)**1.5d0 / (1.0d0 + ESINW)**2.0d0
+          BTERM = sqrt(R12**2 - ETERM**2 * COS2I) / ETERM / SINI
+          PRIDUR = V(19) / PI * ETERM2 * asin(BTERM)
+          ETERM = (1.0d0 - ECC**2) / (1.0d0 - ESINW)
+          ETERM2 = (1.0d0 - ECC**2)**1.5d0 / (1.0d0 - ESINW)**2.0d0
+          BTERM = sqrt(R12**2 - ETERM**2 * COS2I) / ETERM / SINI
+          SECDUR = V(19) / PI * ETERM2 * asin(BTERM)
+          write(62,102) "Primary eclipse duration:           ",PRIDUR
+          write(62,102) "Secondary eclipse duration:         ",SECDUR
+        endif
+
         if ( V(7) > 5.0d0 ) then
           write (62,102) "Eccentricity * cos(omega):          ",ECOSW
           write (62,102) "Eccentricity * sin(omega):          ",ESINW
@@ -3833,9 +4113,26 @@
      &    write (65,'(A35,A35)') "#     TIME       RV_STAR_A    ERROR",
      &                           "      PHASE        MODEL      (O-C)"
           if ( NRV2 >= 1 )
-     &    write (66,'(A35,A35)') "#     TIME       RV_STAR_A    ERROR",
+     &    write (66,'(A35,A35)') "#     TIME       RV_STAR_B    ERROR",
      &                           "      PHASE        MODEL      (O-C)"
         end if
+
+        OMC_HI1 = 0.0d0     ! Highest O-C value for the lightcrve data
+        OMC_HI2 = 0.0d0     ! Second-highest O-C value for the LC data
+        OMC_LO1 = 0.0d0     ! Lowest O-C value for the lightcurve data
+        OMC_LO2 = 0.0d0     ! Second-lowest O-C value  for the LC data
+        SIG_HI1 = 0.0d0     ! Highest sigma value for the lightcv data
+        SIG_HI2 = 0.0d0     ! Second-highest sigmavalue forthe LC data
+        SIG_LO1 = 0.0d0     ! Lowest sigma value for the lightcrv data
+        SIG_LO2 = 0.0d0     ! Second-lowest sigma value forthe LC data
+        iOMC_HI1 = 0        ! Data array index value for OMC_HI1
+        iOMC_HI2 = 0        ! Data array index value for OMC_HI2
+        iOMC_LO1 = 0        ! Data array index value for OMC_LO1
+        iOMC_LO2 = 0        ! Data array index value for OMC_LO2
+        iSIG_HI1 = 0        ! Data array index value for SIG_HI1
+        iSIG_HI2 = 0        ! Data array index value for SIG_HI2
+        iSIG_LO1 = 0        ! Data array index value for SIG_LO1
+        iSIG_LO2 = 0        ! Data array index value for SIG_LO2
 
         RES2SUMLC  = 0.0d0
         RES2SUMLR  = 0.0d0
@@ -3882,6 +4179,62 @@
           if ( DTYPE(i)==6 ) CHISQESW= CHISQESW+ (OMC(i)/DATERR(i))**2
           if ( DTYPE(i)==7 ) CHISQRV1= CHISQRV1+ (OMC(i)/DATERR(i))**2
           if ( DTYPE(i)==8 ) CHISQRV2= CHISQRV2+ (OMC(i)/DATERR(i))**2
+
+                  ! Now keep track of the two highest and two lowest
+                  ! values of (O-C) in the light curve data. Retain
+                  ! their values and also the datapoint numbers.
+
+          if ( WHAT == 1 .or. WHAT == 2 .or. WHAT == 3 ) then
+           if ( DTYPE(i) == 1 ) then
+              if ( OMC(i) > OMC_HI1 ) then
+                OMC_HI2 = OMC_HI1
+                iOMC_HI2 = iOMC_HI1
+                OMC_HI1 = OMC(i)
+                iOMC_HI1 = i
+              else if ( OMC(i) > OMC_HI2 ) then
+                OMC_HI2 = OMC(i)
+                iOMC_HI2 = i
+              endif
+              if ( OMC(i) < OMC_LO1 ) then
+                OMC_LO2 = OMC_LO1
+                iOMC_LO2 = iOMC_LO1
+                OMC_LO1 = OMC(i)
+                iOMC_LO1 = i
+              else if ( OMC(i) < OMC_LO2 ) then
+                OMC_LO2 = OMC(i)
+                iOMC_LO2 = i
+              endif
+            endif
+
+                  ! Now keep track of the two highest and two lowest
+                  ! sigma values in the light curve data. Retain
+                  ! their values and also the datapoint numbers.
+
+            if ( DATERR(1) > 0.0d0 ) then
+              if ( DTYPE(i) == 1 ) then
+                SIGMA = OMC(i) / DATERR(i)
+                if ( SIGMA > SIG_HI1 ) then
+                  SIG_HI2 = SIG_HI1
+                  iSIG_HI2 = iSIG_HI1
+                  SIG_HI1 = SIGMA
+                  iSIG_HI1 = i
+                else if ( SIGMA > SIG_HI2 ) then
+                  SIG_HI2 = SIGMA
+                  iSIG_HI2 = i
+                endif
+                if ( SIGMA < SIG_LO1 ) then
+                  SIG_LO2 = SIG_LO1
+                  iSIG_LO2 = iSIG_LO1
+                  SIG_LO1 = SIGMA
+                  iSIG_LO1 = i
+                else if ( SIGMA < SIG_LO2 ) then
+                  SIG_LO2 = SIGMA
+                  iSIG_LO2 = i
+                endif
+              endif
+            endif
+          endif
+
         end do
 
         CHISQ = CHISQLC + CHISQLR + CHISQMIN + CHISQL3 + CHISQECW
@@ -3925,17 +4278,31 @@
         end if
 
         if ( NECW >= 1 ) then
-          write (62,102) "rms of the ecosw residuals:         ",
+          if ( V(7) > 9.99 ) then
+            write (62,102) "rms of the eccentricity residuals:  ",
      &                                     sqrt(RES2SUMECW / dble(NECW))
-          write (62,102) "Reduced chisq for the ecosw values: ",
+            write (62,102) "Reduced chisq for the eccentricity: ",
      &                                               CHISQECW/dble(NECW)
+          else
+            write (62,102) "rms of the ecosw residuals:         ",
+     &                                     sqrt(RES2SUMECW / dble(NECW))
+            write (62,102) "Reduced chisq for the ecosw values: ",
+     &                                               CHISQECW/dble(NECW)
+          end if
         end if
 
         if ( NESW >= 1 ) then
-          write (62,102) "rms of the esinw residuals:         ",
+          if ( V(7) > 9.99 ) then
+            write (62,102) "rms of the omega residuals:         ",
      &                                     sqrt(RES2SUMESW / dble(NESW))
-          write (62,102) "Reduced chisq for the esinw values: ",
+            write (62,102) "Reduced chisq for the omega values: ",
      &                                               CHISQESW/dble(NESW)
+          else
+            write (62,102) "rms of the esinw residuals:         ",
+     &                                     sqrt(RES2SUMESW / dble(NESW))
+            write (62,102) "Reduced chisq for the esinw values: ",
+     &                                               CHISQESW/dble(NESW)
+          end if
         end if
 
         if ( NRV1 >= 1 ) then
@@ -3955,6 +4322,41 @@
         end if
 
         write (62,*) " "
+
+1567  FORMAT        (I7,2X,F14.6,3X,F10.8,2X,F10.5,1X,F10.5,1X,F10.5)
+
+        if ( WHAT == 1 .or. WHAT == 2 .or. WHAT == 3 ) then
+          write (62,'(A36,A44)') "The two highest and two lowest O-C v",
+     &                   "alues in the light curve:                   "
+          write (62,'(A36,A44)') " Number        Time       Phase     ",
+     &                   "    Magnitude    Model      (O-C)           "
+          write(62,1567)iOMC_LO1,DATX(iOMC_LO1),GETPHASE(DATX(iOMC_LO1),
+     &        V(19),V(20)),DATY(iOMC_LO1),DATY(iOMC_LO1)-OMC_LO1,OMC_LO1
+          write(62,1567)iOMC_LO2,DATX(iOMC_LO2),GETPHASE(DATX(iOMC_LO2),
+     &        V(19),V(20)),DATY(iOMC_LO2),DATY(iOMC_LO2)-OMC_LO2,OMC_LO2
+          write(62,1567)iOMC_HI2,DATX(iOMC_HI2),GETPHASE(DATX(iOMC_HI2),
+     &        V(19),V(20)),DATY(iOMC_HI2),DATY(iOMC_HI2)-OMC_HI2,OMC_HI2
+          write(62,1567)iOMC_HI1,DATX(iOMC_HI1),GETPHASE(DATX(iOMC_HI1),
+     &        V(19),V(20)),DATY(iOMC_HI1),DATY(iOMC_HI1)-OMC_HI1,OMC_HI1
+          write (62,*) " "
+
+        if ( DATERR(1) > 0.0d0 ) then
+            write (62,'(A34,A46)') "The two highest and two lowest res",
+     &                 "idual values in the light curve:              "
+            write (62,'(A34,A46)') " Number        Time       Phase   ",
+     &                 "      Magnitude    Model      sigma           "
+          write(62,1567)iOMC_LO1,DATX(iOMC_LO1),GETPHASE(DATX(iOMC_LO1),
+     &        V(19),V(20)),DATY(iOMC_LO1),DATY(iOMC_LO1)-OMC_LO1,OMC_LO1
+          write(62,1567)iOMC_LO2,DATX(iOMC_LO2),GETPHASE(DATX(iOMC_LO2),
+     &        V(19),V(20)),DATY(iOMC_LO2),DATY(iOMC_LO2)-OMC_LO2,OMC_LO2
+          write(62,1567)iOMC_HI2,DATX(iOMC_HI2),GETPHASE(DATX(iOMC_HI2),
+     &        V(19),V(20)),DATY(iOMC_HI2),DATY(iOMC_HI2)-OMC_HI2,OMC_HI2
+          write(62,1567)iOMC_HI1,DATX(iOMC_HI1),GETPHASE(DATX(iOMC_HI1),
+     &        V(19),V(20)),DATY(iOMC_HI1),DATY(iOMC_HI1)-OMC_HI1,OMC_HI1
+            write (62,*) " "
+          endif
+        endif
+
       end if
 
 !-----------------------------------------------------------------------
@@ -3973,13 +4375,13 @@
      &                                                 NUMINT,NINTERVAL)
           UNINTMAG = GETMODEL(V,VARY,LDTYPE,0,PSINE,0,PPOLY,HJD,1,LP,LS,
      &                                                      1,NINTERVAL)
-          if ( V(27) >= 0.0d0 ) then
+          if ( V(27) >= -1.0d9 ) then
             RV1 = GETMODEL(V,VARY,LDTYPE,0,PSINE,0,PPOLY,HJD,7,LP,LS,
      &                                                 NUMINT,NINTERVAL)
           else
             RV1 = 0.0d0
           end if
-          if ( V(28) >= 0.0d0 ) then
+          if ( V(28) >= -1.0d9 ) then
           RV2 = GETMODEL(V,VARY,LDTYPE,0,PSINE,0,PPOLY,HJD,8,LP,LS,
      &                                                 NUMINT,NINTERVAL)
           else
@@ -4023,7 +4425,7 @@
 
             if ( DTYPE(i) == 5 ) then
               if ( V(7) > 5.0d0 ) write (62,120) "ECC ", DATX(i),
-     &                            DATY(i)-10.d0,DATERR(i),HELP-10.0d0,
+     &                            DATY(i),DATERR(i),HELP,
      &                                 (HELP-DATY(i))/DATERR(i)
               if ( V(7) < 5.0d0 ) write (62,120) "ECSW", DATX(i),
      &               DATY(i),DATERR(i),HELP,(HELP-DATY(i))/DATERR(i)
@@ -4052,7 +4454,7 @@
 
       if ( WHAT > 100 .and. WHAT < 187 ) then
         j = 0
-        do i = 1,138
+        do i = 1,540
           if ( VARY(i) == 1 ) then
             j = j + 1
             VWHERE(j) = i
@@ -4078,7 +4480,7 @@
         end do
         SE = sqrt(RESIDSQSUM / NDATA) * 1000.0d0
         j = 0
-        do i = 1,138
+        do i = 1,540
           if ( VARY(i) == 1 ) then
             j = j + 1
             VWHERE(j) = i
@@ -4105,34 +4507,34 @@
 110   FORMAT (I6,A34)
 ! 111   FORMAT (I2,2X,A18,2X,F18.10,A17)
 ! 112   FORMAT (A39,F7.4)
-113   FORMAT (I3,2X,A19,2X,F18.10,A18)
+113   FORMAT (I3,2X,A19,2X,F18.10,A19)
 114   FORMAT (I3,2X,A19,2X,F18.10," +/- ",F14.10)
-115   FORMAT (A36,3X,I10,2X,I4)
-118   FORMAT (F8.1,1X,F13.5,1X,F8.5,2X,F13.5,1X,F6.2)
-119   FORMAT (F13.5,1X,F7.4,1X,F6.4,2X,F7.4,F7.2)
+! 115   FORMAT (A36,3X,I10,2X,I4)
+! 118   FORMAT (F8.1,1X,F13.5,1X,F8.5,2X,F13.5,1X,F6.2)
+! 119   FORMAT (F13.5,1X,F7.4,1X,F6.4,2X,F7.4,F7.2)
 120   FORMAT (A4,3X,F14.6,1X,F14.6,1X,F10.6,1X,F12.6,F7.2)
 
       END SUBROUTINE OUTPUT
 !=======================================================================
       SUBROUTINE GET_DV (V,DV,NPOLY,PPOLY)
-            ! This subroutine produces the DV values - the intervals for
+            ! This subroutine produces the DV values: the intervals for
             ! evaluating the numerical derivatives for each variable.
             ! The solutions are calculated for V+DV and V-DV, so the DV
             ! values are half the size of the actual numerical interval.
       implicit none
-      real*8 V(138)                       ! IN: photometric parameters
+      real*8 V(540)                       ! IN: photometric parameters
       integer NPOLY                       ! IN: number of polynomials
-      integer PPOLY(9)                    ! IN: parameters of the polys
-      real*8 DV(138)                      ! OUT:  DV values
-      real*8 DVD(138)                     ! LOCAL:  basic DV values
-      real*8 VAL                          ! LOCAL:  value of parameter
-      integer i,j                         ! LOCAL:  loop counters
+      integer PPOLY(50)                   ! IN: parameters of the polys
+      real*8 DV(540)                      ! OUT: DV values
+      real*8 DVD(540)                     ! LOCAL: basic DV values
+      real*8 VAL                          ! LOCAL: value of parameter
+      integer i,j                         ! LOCAL: loop counters
 
       data DVD/ 0.01d0,   0.01d0,   0.01d0,   -0.01d0, ! J rs k LDA1
      &         -0.01d0,  -0.01d0, -0.001d0,  -0.001d0, ! LDB1 i e w
-     &          0.02d0,   0.02d0,  0.001d0,   0.001d0, ! GD1,2 ref1,2
+     &         -0.02d0,  -0.02d0,  0.001d0,   0.001d0, ! GD1,2 ref1,2
      &          0.01d0,  -1.0d0,   -0.01d0, -0.0001d0, ! q tangl L3 dPhi
-     &        -0.001d0,   0.5d0,    0.1d-6,  -0.001d0, ! sfact ring P T0
+     &        -0.001d0,   0.5d0,    0.1d-6, -0.0001d0, ! sfact ring P T0
      &         -0.01d0,  -0.01d0,  -0.01d0,            ! LDA2 LDA3 LDA4
      &         -0.01d0,  -0.01d0,  -0.01d0,            ! LDB2 LDB3 LDB4
      &          0.01d0,   0.01d0,   -0.1d0,    -0.1d0, ! KA KB Vsys Vsys
@@ -4145,6 +4547,17 @@
      &       -0.01d0,   0.0001d0,   0.01d0,            ! sine 7 T0,p,amp
      &       -0.01d0,   0.0001d0,   0.01d0,            ! sine 8 T0,p,amp
      &       -0.01d0,   0.0001d0,   0.01d0,            ! sine 9 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine10 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine11 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine12 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine13 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine14 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine15 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine16 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine17 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine18 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine19 T0,p,amp
+     &       -0.01d0,   0.0001d0,   0.01d0,            ! sine20 T0,p,amp
      &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 1
      &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 2
      &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 3
@@ -4153,7 +4566,48 @@
      &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 6
      &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 7
      &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 8
-     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0 / ! poly 9
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 9
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 10
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 11
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 12
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 13
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 14
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 15
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 16
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 17
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 18
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 19
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 20
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 21
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 22
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 23
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 24
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 25
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 26
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 27
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 28
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 29
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 30
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 31
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 32
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 33
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 34
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 35
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 36
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 37
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 38
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 39
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 40
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 41
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 42
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 43
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 44
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 45
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 46
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 47
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 48
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,  ! poly 49
+     &        0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0,0.d0/  ! poly 50
 
             ! The DVD values are the basic information from which the DV
             ! values are calculated, and essentially represent the order
@@ -4162,7 +4616,7 @@
             ! If DVD(i) > 0 then is it a multiplicative perturbation.
             ! If DVD(i) < 0 then is it an additive perturbation.
 
-      do i = 1,57
+      do i = 1,540
         if ( DVD(i) >= 0.0d0 ) then
           DV(i) = abs(DVD(i)*V(i))
         else
@@ -4172,8 +4626,10 @@
             ! The sine timesbases need special treatment: set them to
             ! one hundredth of the period of the sine wave in question.
 
-        if ( i==31 .or. i==34 .or. i==37 .or. i==40 .or. i==43
-     &             .or. i==46 .or. i==49 .or. i==52 .or. i==55 ) then
+        if ( i==31 .or. i==34 .or. i==37 .or. i==40 .or. i==43 .or.
+     &       i==46 .or. i==49 .or. i==52 .or. i==55 .or. i==58 .or.
+     &       i==61 .or. i==64 .or. i==67 .or. i==70 .or. i==73 .or.
+     &       i==76 .or. i==79 .or. i==82 .or. i==85 .or. i==88 ) then
           DV(i) = V(i+1) / 100.0d0
         end if
       end do
@@ -4196,18 +4652,18 @@
 !               if ( WHICHPAR == "L2" ) PPOLY(NPOLY) = -2
 
       do i = 1,NPOLY
-        j = 49 + 9*i
-!         write(36,'(20(i3))')npoly,j,ppoly
+        j = 91 + 9*(i-1)
         DV(j)   = 0.0001d0         ! Timebase - will not be adjusted
         DV(j+1) = 0.0001d0         ! Timebase - will not be adjusted
         DV(j+2) = 0.0001d0         ! Timebase - will not be adjusted
 
             ! First fix the additive numerical intervals
 
-        if ( PPOLY(i) == 1 .or. PPOLY(i) == 6 .or.
-     &       PPOLY(i) == 7 .or. PPOLY(i) == 7 .or.
-     &       PPOLY(i) == 15 .or. PPOLY(i) == 17 .or.
-     &       PPOLY(i) == -1 .or. PPOLY(i) == -2 ) then
+        if ( PPOLY(i) ==  1 .or. PPOLY(i) ==  6 .or. PPOLY(i) ==  7 .or.
+     &       PPOLY(i) ==  7 .or. PPOLY(i) == 15 .or. PPOLY(i) == 17 .or.
+     &       PPOLY(i) == 20 .or. PPOLY(i) == 27 .or. PPOLY(i) == 28 .or.
+     &       PPOLY(i) == 29 .or. PPOLY(i) == 30 .or. PPOLY(i) == -1 .or.
+     &       PPOLY(i) == -2 ) then
           DV(j+3) = 0.001d0
           DV(j+4) = 0.001d0
           DV(j+5) = 0.0001d0
@@ -4246,39 +4702,90 @@
 !=======================================================================
       SUBROUTINE GETNAME (V,NAME5,NAMEXTRA5,NAME19,NAMEXTRA19)
       implicit none
-      real*8 V(138)                              ! IN: fitted parameters
-      character*5 NAME5(138),NAMEXTRA5(18)       ! OUT: short names
-      character*19 NAME19(138),NAMEXTRA19(18)    ! OUT: long names
-      character*5 N5(138),NE5(18)                ! LOCAL: short names
-      character*19 N19(138),NE19(18)             ! LOCAL: long names
-      integer i                                 ! LOCAL: loop counter
+      real*8 V(540)                              ! IN: fitted parameters
+      character*5 NAME5(540),NAMEXTRA5(18)       ! OUT: short names
+      character*19 NAME19(540),NAMEXTRA19(18)    ! OUT: long names
+      character*5 N5(540),NE5(18)                ! LOCAL: short names
+      character*19 N19(540),NE19(18)             ! LOCAL: long names
+      integer i                                  ! LOCAL: loop counter
 
             ! I appear to need to define local variables (N5, NE5, N19,
             ! NE19) and then put them in the output arrays (NAME5, NAME-
             ! XTRA5, NAME19, NAMEXTRA19). ifort doesn't allow the output
             ! arrays to be filled using a data statement. What a pain.
 
-      data N5 /      "    J","rA+rB","    k","LD_A1","LD_B1","  inc",
+      data N5 /         "    J","rA+rB","    k","LD_A1","LD_B1","  inc",
      &                  "ecosw","esinw"," GD_A"," GD_B","reflA","reflB",
      &                  "qphot","T_lag","  L_3","phcor","sfact","iring",
      &                  "P_orb","  T_0","LD_A2","LD_A3","LD_A4","LD_B2",
      &                  "LD_B3","LD_B4","  K_A","  K_B","VsysA","VsysB",
-     &          "sin1T","sin1P","sin1A","sin2T","sin2P","sin2A",
-     &          "sin3T","sin3P","sin3A","sin4T","sin4P","sin4A",
-     &          "sin5T","sin5P","sin5A","sin6T","sin6P","sin6A",
-     &          "sin7T","sin7P","sin7A","sin8T","sin8P","sin8A",
-     &          "sin9T","sin9P","sin9A",
-     & "p1_pv","p1_ts","p1_tf","p1_co","p1_x ","p1_x2","p1_x3","p1_x4",
-     & "p1_x5","p2_pv","p2_ts","p2_tf","p2_co","p2_x ","p2_x2","p2_x3",
-     & "p2_x4","p2_x5","p3_pv","p3_ts","p3_tf","p3_co","p3_x ","p3_x2",
-     & "p3_x3","p3_x4","p3_x5","p4_pv","p4_ts","p4_tf","p4_co","p4_x ",
-     & "p4_x2","p4_x3","p4_x4","p4_x5","p5_pv","p5_ts","p5_tf","p5_co",
-     & "p5_x ","p5_x2","p5_x3","p5_x4","p5_x5","p6_pv","p6_ts","p6_tf",
-     & "p6_co","p6_x ","p6_x2","p6_x3","p6_x4","p6_x5","p7_pv","p7_ts",
-     & "p7_tf","p7_co","p7_x ","p7_x2","p7_x3","p7_x4","p7_x5","p8_pv",
-     & "p8_ts","p8_tf","p8_co","p8_x ","p8_x2","p8_x3","p8_x4","p8_x5",
-     & "p9_pv","p9_ts","p9_tf","p9_co","p9_x ","p9_x2","p9_x3","p9_x4",
-     & "p9_x5" /
+     &          "sin1T","sin1P","sin1A", "sin2T","sin2P","sin2A",
+     &          "sin3T","sin3P","sin3A", "sin4T","sin4P","sin4A",
+     &          "sin5T","sin5P","sin5A", "sin6T","sin6P","sin6A",
+     &          "sin7T","sin7P","sin7A", "sin8T","sin8P","sin8A",
+     &          "sin9T","sin9P","sin9A", "sn10T","sn10P","sn10A",
+     &          "sn11T","sn11P","sn11A", "sn12T","sn12P","sn12A",
+     &          "sn13T","sn13P","sn13A", "sn14T","sn14P","sn14A",
+     &          "sn15T","sn15P","sn15A", "sn16T","sn16P","sn16A",
+     &          "sn17T","sn17P","sn17A", "sn18T","sn18P","sn18A",
+     &          "sn19T","sn19P","sn19A", "sn20T","sn20P","sn20A",
+     & "p01pv","p01ts","p01tf","p01co","p01x ","p01x2","p01x3","p01x4",
+     & "p01x5","p02pv","p02ts","p02tf","p02co","p02x ","p02x2","p02x3",
+     & "p02x4","p02x5","p03pv","p03ts","p03tf","p03co","p03x ","p03x2",
+     & "p03x3","p03x4","p03x5","p04pv","p04ts","p04tf","p04co","p04x ",
+     & "p04x2","p04x3","p04x4","p04x5","p05pv","p05ts","p05tf","p05co",
+     & "p05x ","p05x2","p05x3","p05x4","p05x5","p05pv","p05ts","p05tf",
+     & "p06co","p06x ","p06x2","p06x3","p06x4","p06x5","p06pv","p06ts",
+     & "p07tf","p07co","p07x ","p07x2","p07x3","p07x4","p07x5","p07pv",
+     & "p08ts","p08tf","p08co","p08x ","p08x2","p08x3","p08x4","p08x5",
+     & "p09pv","p09ts","p09tf","p09co","p09x ","p09x2","p09x3","p09x4",
+     & "p09x5","p10pv","p10ts","p10tf","p10co","p10x ","p10x2","p10x3",
+     & "p10x4","p10x5","p11pv","p11ts","p11tf","p11co","p11x ","p11x2",
+     & "p11x3","p11x4","p11x5","p12pv","p12ts","p12tf","p12co","p12x ",
+     & "p12x2","p12x3","p12x4","p12x5","p13pv","p13ts","p13tf","p13co",
+     & "p13x ","p13x2","p13x3","p13x4","p13x5","p14pv","p14ts","p14tf",
+     & "p14co","p14x ","p14x2","p14x3","p14x4","p14x5","p15pv","p15ts",
+     & "p15tf","p15co","p15x ","p15x2","p15x3","p15x4","p15x5","p16pv",
+     & "p16ts","p16tf","p16co","p16x ","p16x2","p16x3","p16x4","p16x5",
+     & "p17pv","p17ts","p17tf","p17co","p17x ","p17x2","p17x3","p17x4",
+     & "p17x5","p18pv","p18ts","p18tf","p18co","p18x ","p18x2","p18x3",
+     & "p18x4","p18x5","p19pv","p19ts","p19tf","p19co","p19x ","p19x2",
+     & "p19x3","p19x4","p19x5","p20pv","p20ts","p20tf","p20co","p20x ",
+     & "p20x2","p20x3","p20x4","p20x5","p21pv","p21ts","p21tf",
+     & "p21co","p21x ","p21x2","p21x3","p21x4","p21x5","p22pv","p22ts",
+     & "p22tf","p22co","p22x ","p22x2","p22x3","p22x4","p22x5","p23pv",
+     & "p23ts","p23tf","p23co","p23x ","p23x2","p23x3","p23x4","p23x5",
+     & "p24pv","p24ts","p24tf","p24co","p24x ","p24x2","p24x3","p24x4",
+     & "p24x5","p25pv","p25ts","p25tf","p25co","p25x ","p25x2","p25x3",
+     & "p25x4","p25x5","p26pv","p26ts","p26tf","p26co","p26x ","p26x2",
+     & "p26x3","p26x4","p26x5","p27pv","p27ts","p27tf","p27co","p27x ",
+     & "p27x2","p27x3","p27x4","p27x5","p28pv","p28ts","p28tf","p28co",
+     & "p28x ","p28x2","p28x3","p28x4","p28x5","p29pv","p29ts","p29tf",
+     & "p29co","p29x ","p29x2","p29x3","p29x4","p29x5","p30pv","p30ts",
+     & "p30tf","p30co","p30x ","p30x2","p30x3","p30x4","p30x5","p31pv",
+     & "p31ts","p31tf","p31co","p31x ","p31x2","p31x3","p31x4","p31x5",
+     & "p32pv","p32ts","p32tf","p32co","p32x ","p32x2","p32x3","p32x4",
+     & "p32x5","p33pv","p33ts","p33tf","p33co","p33x ","p33x2","p33x3",
+     & "p33x4","p33x5","p34pv","p34ts","p34tf","p34co","p34x ","p34x2",
+     & "p34x3","p34x4","p34x5","p35pv","p35ts","p35tf","p35co","p35x ",
+     & "p35x2","p35x3","p35x4","p35x5","p36pv","p36ts","p36tf","p36co",
+     & "p36x ","p36x2","p36x3","p36x4","p36x5","p37pv","p37ts","p37tf",
+     & "p37co","p37x ","p37x2","p37x3","p37x4","p37x5","p38pv","p38ts",
+     & "p38tf","p38co","p38x ","p38x2","p38x3","p38x4","p38x5","p39pv",
+     & "p39ts","p39tf","p39co","p39x ","p39x2","p39x3","p39x4","p39x5",
+     & "p40pv","p40ts","p40tf","p40co","p40x ","p40x2","p40x3","p40x4",
+     & "p40x5","p41pv","p41ts","p41tf","p41co","p41x ","p41x2","p41x3",
+     & "p41x4","p41x5","p42pv","p42ts","p42tf","p42co","p42x ","p42x2",
+     & "p42x3","p42x4","p42x5","p43pv","p43ts","p43tf","p43co","p43x ",
+     & "p43x2","p43x3","p43x4","p43x5","p44pv","p44ts","p44tf","p44co",
+     & "p44x ","p44x2","p44x3","p44x4","p44x5","p45pv","p45ts","p45tf",
+     & "p45co","p45x ","p45x2","p45x3","p45x4","p45x5","p46pv","p46ts",
+     & "p46tf","p46co","p46x ","p46x2","p46x3","p46x4","p46x5","p47pv",
+     & "p47ts","p47tf","p47co","p47x ","p47x2","p47x3","p47x4","p47x5",
+     & "p48pv","p48ts","p48tf","p48co","p48x ","p48x2","p48x3","p48x4",
+     & "p48x5","p49pv","p49ts","p49tf","p49co","p49x ","p49x2","p49x3",
+     & "p49x4","p49x5","p50pv","p50ts","p50tf","p50co","p50x ","p50x2",
+     & "p50x3","p50x4","p50x5" /
 
       data NE5 /  "  r_A","  r_B","LB/LA","    e","omega","b_pri",
      &                  "b_sec","Rchi2","    a","    q","  M_A","  M_B",
@@ -4295,43 +4802,176 @@
      &"Limb darkening A3  ","Limb darkening A4  ","Limb darkening B2  ",
      &"Limb darkening B3  ","Limb darkening B4  ","RV amplitude star A",
      &"RV amplitude star B","Systemic RV star A ","Systemic RV star B ",
-     &"Sine 1 timebase    ","Sine 1 period      ","Sine 1 amplitude   ",
-     &"Sine 2 timebase    ","Sine 2 period      ","Sine 2 amplitude   ",
-     &"Sine 3 timebase    ","Sine 3 period      ","Sine 3 amplitude   ",
-     &"Sine 4 timebase    ","Sine 4 period      ","Sine 4 amplitude   ",
-     &"Sine 5 timebase    ","Sine 5 period      ","Sine 5 amplitude   ",
-     &"Sine 6 timebase    ","Sine 6 period      ","Sine 6 amplitude   ",
-     &"Sine 7 timebase    ","Sine 7 period      ","Sine 7 amplitude   ",
-     &"Sine 8 timebase    ","Sine 8 period      ","Sine 8 amplitude   ",
-     &"Sine 9 timebase    ","Sine 9 period      ","Sine 9 amplitude   ",
-     &"Poly 1 pivot       ","Poly 1 time start  ","Poly 1 time finish ",
-     &"Poly 1 constant    ","Poly 1 coeff of x  ","Poly 1 coeff of x^2",
-     &"Poly 1 coeff of x^3","Poly 1 coeff of x^4","Poly 1 coeff of x^5",
-     &"Poly 2 pivot       ","Poly 2 time start  ","Poly 2 time finish ",
-     &"Poly 2 constant    ","Poly 2 coeff of x  ","Poly 2 coeff of x^2",
-     &"Poly 2 coeff of x^3","Poly 2 coeff of x^4","Poly 2 coeff of x^5",
-     &"Poly 3 pivot       ","Poly 3 time start  ","Poly 3 time finish ",
-     &"Poly 3 constant    ","Poly 3 coeff of x  ","Poly 3 coeff of x^2",
-     &"Poly 3 coeff of x^3","Poly 3 coeff of x^4","Poly 3 coeff of x^5",
-     &"Poly 4 pivot       ","Poly 4 time start  ","Poly 4 time finish ",
-     &"Poly 4 constant    ","Poly 4 coeff of x  ","Poly 4 coeff of x^2",
-     &"Poly 4 coeff of x^3","Poly 4 coeff of x^4","Poly 4 coeff of x^5",
-     &"Poly 5 pivot       ","Poly 5 time start  ","Poly 5 time finish ",
-     &"Poly 5 constant    ","Poly 5 coeff of x  ","Poly 5 coeff of x^2",
-     &"Poly 5 coeff of x^3","Poly 5 coeff of x^4","Poly 5 coeff of x^5",
-     &"Poly 6 pivot       ","Poly 6 time start  ","Poly 6 time finish ",
-     &"Poly 6 constant    ","Poly 6 coeff of x  ","Poly 6 coeff of x^2",
-     &"Poly 6 coeff of x^3","Poly 6 coeff of x^4","Poly 6 coeff of x^5",
-     &"Poly 7 pivot       ","Poly 7 time start  ","Poly 7 time finish ",
-     &"Poly 7 constant    ","Poly 7 coeff of x  ","Poly 7 coeff of x^2",
-     &"Poly 7 coeff of x^3","Poly 7 coeff of x^4","Poly 7 coeff of x^5",
-     &"Poly 8 pivot       ","Poly 8 time start  ","Poly 8 time finish ",
-     &"Poly 8 constant    ","Poly 8 coeff of x  ","Poly 8 coeff of x^2",
-     &"Poly 8 coeff of x^3","Poly 8 coeff of x^4","Poly 8 coeff of x^5",
-     &"Poly 9 pivot       ","Poly 9 time start  ","Poly 9 time finish ",
-     &"Poly 9 constant    ","Poly 9 coeff of x  ","Poly 9 coeff of x^2",
-     &"Poly 9 coeff of x^3","Poly 9 coeff of x^4","Poly 9 coeff of x^5"/
-
+     &"Sine01 timebase    ","Sine01 period      ","Sine01 amplitude   ",
+     &"Sine02 timebase    ","Sine02 period      ","Sine02 amplitude   ",
+     &"Sine03 timebase    ","Sine03 period      ","Sine03 amplitude   ",
+     &"Sine04 timebase    ","Sine04 period      ","Sine04 amplitude   ",
+     &"Sine05 timebase    ","Sine05 period      ","Sine05 amplitude   ",
+     &"Sine06 timebase    ","Sine06 period      ","Sine06 amplitude   ",
+     &"Sine07 timebase    ","Sine07 period      ","Sine07 amplitude   ",
+     &"Sine08 timebase    ","Sine08 period      ","Sine08 amplitude   ",
+     &"Sine09 timebase    ","Sine09 period      ","Sine09 amplitude   ",
+     &"Sine10 timebase    ","Sine10 period      ","Sine10 amplitude   ",
+     &"Sine11 timebase    ","Sine11 period      ","Sine11 amplitude   ",
+     &"Sine12 timebase    ","Sine12 period      ","Sine12 amplitude   ",
+     &"Sine13 timebase    ","Sine13 period      ","Sine13 amplitude   ",
+     &"Sine14 timebase    ","Sine14 period      ","Sine14 amplitude   ",
+     &"Sine15 timebase    ","Sine15 period      ","Sine15 amplitude   ",
+     &"Sine16 timebase    ","Sine16 period      ","Sine16 amplitude   ",
+     &"Sine17 timebase    ","Sine17 period      ","Sine17 amplitude   ",
+     &"Sine18 timebase    ","Sine18 period      ","Sine18 amplitude   ",
+     &"Sine19 timebase    ","Sine19 period      ","Sine19 amplitude   ",
+     &"Sine20 timebase    ","Sine20 period      ","Sine20 amplitude   ",
+     &"Poly01 pivot       ","Poly01 time start  ","Poly01 time finish ",
+     &"Poly01 constant    ","Poly01 coeff of x  ","Poly01 coeff of x^2",
+     &"Poly01 coeff of x^3","Poly01 coeff of x^4","Poly01 coeff of x^5",
+     &"Poly02 pivot       ","Poly02 time start  ","Poly02 time finish ",
+     &"Poly02 constant    ","Poly02 coeff of x  ","Poly02 coeff of x^2",
+     &"Poly02 coeff of x^3","Poly02 coeff of x^4","Poly02 coeff of x^5",
+     &"Poly03 pivot       ","Poly03 time start  ","Poly03 time finish ",
+     &"Poly03 constant    ","Poly03 coeff of x  ","Poly03 coeff of x^2",
+     &"Poly03 coeff of x^3","Poly03 coeff of x^4","Poly03 coeff of x^5",
+     &"Poly04 pivot       ","Poly04 time start  ","Poly04 time finish ",
+     &"Poly04 constant    ","Poly04 coeff of x  ","Poly04 coeff of x^2",
+     &"Poly04 coeff of x^3","Poly04 coeff of x^4","Poly04 coeff of x^5",
+     &"Poly05 pivot       ","Poly05 time start  ","Poly05 time finish ",
+     &"Poly05 constant    ","Poly05 coeff of x  ","Poly05 coeff of x^2",
+     &"Poly05 coeff of x^3","Poly05 coeff of x^4","Poly05 coeff of x^5",
+     &"Poly06 pivot       ","Poly06 time start  ","Poly06 time finish ",
+     &"Poly06 constant    ","Poly06 coeff of x  ","Poly06 coeff of x^2",
+     &"Poly06 coeff of x^3","Poly06 coeff of x^4","Poly06 coeff of x^5",
+     &"Poly07 pivot       ","Poly07 time start  ","Poly07 time finish ",
+     &"Poly07 constant    ","Poly07 coeff of x  ","Poly07 coeff of x^2",
+     &"Poly07 coeff of x^3","Poly07 coeff of x^4","Poly07 coeff of x^5",
+     &"Poly08 pivot       ","Poly08 time start  ","Poly08 time finish ",
+     &"Poly08 constant    ","Poly08 coeff of x  ","Poly08 coeff of x^2",
+     &"Poly08 coeff of x^3","Poly08 coeff of x^4","Poly08 coeff of x^5",
+     &"Poly09 pivot       ","Poly09 time start  ","Poly09 time finish ",
+     &"Poly09 constant    ","Poly09 coeff of x  ","Poly09 coeff of x^2",
+     &"Poly09 coeff of x^3","Poly09 coeff of x^4","Poly09 coeff of x^5",
+     &"Poly10 pivot       ","Poly10 time start  ","Poly10 time finish ",
+     &"Poly10 constant    ","Poly10 coeff of x  ","Poly10 coeff of x^2",
+     &"Poly10 coeff of x^3","Poly10 coeff of x^4","Poly10 coeff of x^5",
+     &"Poly11 pivot       ","Poly11 time start  ","Poly11 time finish ",
+     &"Poly11 constant    ","Poly11 coeff of x  ","Poly11 coeff of x^2",
+     &"Poly11 coeff of x^3","Poly11 coeff of x^4","Poly11 coeff of x^5",
+     &"Poly12 pivot       ","Poly12 time start  ","Poly12 time finish ",
+     &"Poly12 constant    ","Poly12 coeff of x  ","Poly12 coeff of x^2",
+     &"Poly12 coeff of x^3","Poly12 coeff of x^4","Poly12 coeff of x^5",
+     &"Poly13 pivot       ","Poly13 time start  ","Poly13 time finish ",
+     &"Poly13 constant    ","Poly13 coeff of x  ","Poly13 coeff of x^2",
+     &"Poly13 coeff of x^3","Poly13 coeff of x^4","Poly13 coeff of x^5",
+     &"Poly14 pivot       ","Poly14 time start  ","Poly14 time finish ",
+     &"Poly14 constant    ","Poly14 coeff of x  ","Poly14 coeff of x^2",
+     &"Poly14 coeff of x^3","Poly14 coeff of x^4","Poly14 coeff of x^5",
+     &"Poly15 pivot       ","Poly15 time start  ","Poly15 time finish ",
+     &"Poly15 constant    ","Poly15 coeff of x  ","Poly15 coeff of x^2",
+     &"Poly15 coeff of x^3","Poly15 coeff of x^4","Poly15 coeff of x^5",
+     &"Poly16 pivot       ","Poly16 time start  ","Poly16 time finish ",
+     &"Poly16 constant    ","Poly16 coeff of x  ","Poly16 coeff of x^2",
+     &"Poly16 coeff of x^3","Poly16 coeff of x^4","Poly16 coeff of x^5",
+     &"Poly17 pivot       ","Poly17 time start  ","Poly17 time finish ",
+     &"Poly17 constant    ","Poly17 coeff of x  ","Poly17 coeff of x^2",
+     &"Poly17 coeff of x^3","Poly17 coeff of x^4","Poly17 coeff of x^5",
+     &"Poly18 pivot       ","Poly18 time start  ","Poly18 time finish ",
+     &"Poly18 constant    ","Poly18 coeff of x  ","Poly18 coeff of x^2",
+     &"Poly18 coeff of x^3","Poly18 coeff of x^4","Poly18 coeff of x^5",
+     &"Poly19 pivot       ","Poly19 time start  ","Poly19 time finish ",
+     &"Poly19 constant    ","Poly19 coeff of x  ","Poly19 coeff of x^2",
+     &"Poly19 coeff of x^3","Poly19 coeff of x^4","Poly19 coeff of x^5",
+     &"Poly20 pivot       ","Poly20 time start  ","Poly20 time finish ",
+     &"Poly20 constant    ","Poly20 coeff of x  ","Poly20 coeff of x^2",
+     &"Poly20 coeff of x^3","Poly20 coeff of x^4","Poly20 coeff of x^5",
+     &"Poly21 pivot       ","Poly21 time start  ","Poly21 time finish ",
+     &"Poly21 constant    ","Poly21 coeff of x  ","Poly21 coeff of x^2",
+     &"Poly21 coeff of x^3","Poly21 coeff of x^4","Poly21 coeff of x^5",
+     &"Poly22 pivot       ","Poly22 time start  ","Poly22 time finish ",
+     &"Poly22 constant    ","Poly22 coeff of x  ","Poly22 coeff of x^2",
+     &"Poly22 coeff of x^3","Poly22 coeff of x^4","Poly22 coeff of x^5",
+     &"Poly23 pivot       ","Poly23 time start  ","Poly23 time finish ",
+     &"Poly23 constant    ","Poly23 coeff of x  ","Poly23 coeff of x^2",
+     &"Poly23 coeff of x^3","Poly23 coeff of x^4","Poly23 coeff of x^5",
+     &"Poly24 pivot       ","Poly24 time start  ","Poly24 time finish ",
+     &"Poly24 constant    ","Poly24 coeff of x  ","Poly24 coeff of x^2",
+     &"Poly24 coeff of x^3","Poly24 coeff of x^4","Poly24 coeff of x^5",
+     &"Poly25 pivot       ","Poly25 time start  ","Poly25 time finish ",
+     &"Poly25 constant    ","Poly25 coeff of x  ","Poly25 coeff of x^2",
+     &"Poly25 coeff of x^3","Poly25 coeff of x^4","Poly25 coeff of x^5",
+     &"Poly26 pivot       ","Poly26 time start  ","Poly26 time finish ",
+     &"Poly26 constant    ","Poly26 coeff of x  ","Poly26 coeff of x^2",
+     &"Poly26 coeff of x^3","Poly26 coeff of x^4","Poly26 coeff of x^5",
+     &"Poly27 pivot       ","Poly27 time start  ","Poly27 time finish ",
+     &"Poly27 constant    ","Poly27 coeff of x  ","Poly27 coeff of x^2",
+     &"Poly27 coeff of x^3","Poly27 coeff of x^4","Poly27 coeff of x^5",
+     &"Poly28 pivot       ","Poly28 time start  ","Poly28 time finish ",
+     &"Poly28 constant    ","Poly28 coeff of x  ","Poly28 coeff of x^2",
+     &"Poly28 coeff of x^3","Poly28 coeff of x^4","Poly28 coeff of x^5",
+     &"Poly29 pivot       ","Poly29 time start  ","Poly29 time finish ",
+     &"Poly29 constant    ","Poly29 coeff of x  ","Poly29 coeff of x^2",
+     &"Poly29 coeff of x^3","Poly29 coeff of x^4","Poly29 coeff of x^5",
+     &"Poly30 pivot       ","Poly30 time start  ","Poly30 time finish ",
+     &"Poly30 constant    ","Poly30 coeff of x  ","Poly30 coeff of x^2",
+     &"Poly30 coeff of x^3","Poly30 coeff of x^4","Poly30 coeff of x^5",
+     &"Poly31 pivot       ","Poly31 time start  ","Poly31 time finish ",
+     &"Poly31 constant    ","Poly31 coeff of x  ","Poly31 coeff of x^2",
+     &"Poly31 coeff of x^3","Poly31 coeff of x^4","Poly31 coeff of x^5",
+     &"Poly32 pivot       ","Poly32 time start  ","Poly32 time finish ",
+     &"Poly32 constant    ","Poly32 coeff of x  ","Poly32 coeff of x^2",
+     &"Poly32 coeff of x^3","Poly32 coeff of x^4","Poly32 coeff of x^5",
+     &"Poly33 pivot       ","Poly33 time start  ","Poly33 time finish ",
+     &"Poly33 constant    ","Poly33 coeff of x  ","Poly33 coeff of x^2",
+     &"Poly33 coeff of x^3","Poly33 coeff of x^4","Poly33 coeff of x^5",
+     &"Poly34 pivot       ","Poly34 time start  ","Poly34 time finish ",
+     &"Poly34 constant    ","Poly34 coeff of x  ","Poly34 coeff of x^2",
+     &"Poly34 coeff of x^3","Poly34 coeff of x^4","Poly34 coeff of x^5",
+     &"Poly35 pivot       ","Poly35 time start  ","Poly35 time finish ",
+     &"Poly35 constant    ","Poly35 coeff of x  ","Poly35 coeff of x^2",
+     &"Poly35 coeff of x^3","Poly35 coeff of x^4","Poly35 coeff of x^5",
+     &"Poly36 pivot       ","Poly36 time start  ","Poly36 time finish ",
+     &"Poly36 constant    ","Poly36 coeff of x  ","Poly36 coeff of x^2",
+     &"Poly36 coeff of x^3","Poly36 coeff of x^4","Poly36 coeff of x^5",
+     &"Poly37 pivot       ","Poly37 time start  ","Poly37 time finish ",
+     &"Poly37 constant    ","Poly37 coeff of x  ","Poly37 coeff of x^2",
+     &"Poly37 coeff of x^3","Poly37 coeff of x^4","Poly37 coeff of x^5",
+     &"Poly38 pivot       ","Poly38 time start  ","Poly38 time finish ",
+     &"Poly38 constant    ","Poly38 coeff of x  ","Poly38 coeff of x^2",
+     &"Poly38 coeff of x^3","Poly38 coeff of x^4","Poly38 coeff of x^5",
+     &"Poly39 pivot       ","Poly39 time start  ","Poly39 time finish ",
+     &"Poly39 constant    ","Poly39 coeff of x  ","Poly39 coeff of x^2",
+     &"Poly39 coeff of x^3","Poly39 coeff of x^4","Poly39 coeff of x^5",
+     &"Poly40 pivot       ","Poly40 time start  ","Poly40 time finish ",
+     &"Poly40 constant    ","Poly40 coeff of x  ","Poly40 coeff of x^2",
+     &"Poly40 coeff of x^3","Poly40 coeff of x^4","Poly40 coeff of x^5",
+     &"Poly41 pivot       ","Poly41 time start  ","Poly41 time finish ",
+     &"Poly41 constant    ","Poly41 coeff of x  ","Poly41 coeff of x^2",
+     &"Poly41 coeff of x^3","Poly41 coeff of x^4","Poly41 coeff of x^5",
+     &"Poly42 pivot       ","Poly42 time start  ","Poly42 time finish ",
+     &"Poly42 constant    ","Poly42 coeff of x  ","Poly42 coeff of x^2",
+     &"Poly42 coeff of x^3","Poly42 coeff of x^4","Poly42 coeff of x^5",
+     &"Poly43 pivot       ","Poly43 time start  ","Poly43 time finish ",
+     &"Poly43 constant    ","Poly43 coeff of x  ","Poly43 coeff of x^2",
+     &"Poly43 coeff of x^3","Poly43 coeff of x^4","Poly43 coeff of x^5",
+     &"Poly44 pivot       ","Poly44 time start  ","Poly44 time finish ",
+     &"Poly44 constant    ","Poly44 coeff of x  ","Poly44 coeff of x^2",
+     &"Poly44 coeff of x^3","Poly44 coeff of x^4","Poly44 coeff of x^5",
+     &"Poly45 pivot       ","Poly45 time start  ","Poly45 time finish ",
+     &"Poly45 constant    ","Poly45 coeff of x  ","Poly45 coeff of x^2",
+     &"Poly45 coeff of x^3","Poly45 coeff of x^4","Poly45 coeff of x^5",
+     &"Poly46 pivot       ","Poly46 time start  ","Poly46 time finish ",
+     &"Poly46 constant    ","Poly46 coeff of x  ","Poly46 coeff of x^2",
+     &"Poly46 coeff of x^3","Poly46 coeff of x^4","Poly46 coeff of x^5",
+     &"Poly47 pivot       ","Poly47 time start  ","Poly47 time finish ",
+     &"Poly47 constant    ","Poly47 coeff of x  ","Poly47 coeff of x^2",
+     &"Poly47 coeff of x^3","Poly47 coeff of x^4","Poly47 coeff of x^5",
+     &"Poly48 pivot       ","Poly48 time start  ","Poly48 time finish ",
+     &"Poly48 constant    ","Poly48 coeff of x  ","Poly48 coeff of x^2",
+     &"Poly48 coeff of x^3","Poly48 coeff of x^4","Poly48 coeff of x^5",
+     &"Poly49 pivot       ","Poly49 time start  ","Poly49 time finish ",
+     &"Poly49 constant    ","Poly49 coeff of x  ","Poly49 coeff of x^2",
+     &"Poly49 coeff of x^3","Poly49 coeff of x^4","Poly49 coeff of x^5",
+     &"Poly50 pivot       ","Poly50 time start  ","Poly50 time finish ",
+     &"Poly50 constant    ","Poly50 coeff of x  ","Poly50 coeff of x^2",
+     &"Poly50 coeff of x^3","Poly50 coeff of x^4","Poly50 coeff of x^5"/
 
       data NE19 /
      &"Frac radius star A ","Frac radius star B ","Light ratio (B/A)  ",
@@ -4341,7 +4981,7 @@
      &"Star A radius  Rsun","Star B radius  Rsun","Star A logg   c.g.s",
      &"Star B logg   c.g.s","Star A density  sun","Star B density  sun"/
 
-      do i = 1,138
+      do i = 1,540
         NAME5(i) = N5(i)
         NAME19(i) = N19(i)
       end do
@@ -4358,7 +4998,7 @@
         NAMEXTRA5(2) = "    k"
         NAME19(2) = "Frac radius star A "
         NAME19(3) = "Frac radius star B "
-        NAMEXTRA19(1) = "Sum of frac radii   "
+        NAMEXTRA19(1) = "Sum of frac radii  "
         NAMEXTRA19(2) = "Ratio of the radii "
       end if
 
@@ -4382,13 +5022,13 @@
             ! interest from the fitted quantities.
 
       implicit none
-      real*8 V(138)                        ! IN:  Parameters of the fit
-      integer VARY(138)                    ! IN:  Which parameters fitted
+      real*8 V(540)                       ! IN:  Parameters of the fit
+      integer VARY(540)                   ! IN:  Which parameters fitted
       integer NDATA                       ! IN:  Number of datapoints
       integer LDTYPE(2)                   ! IN:  Type of LD law for star
       real*8 CHISQ                        ! IN:  Chi-squared of the fit
-      integer NSINE,PSINE(9)              ! IN:  Which par for each sine
-      integer NPOLY,PPOLY(9)              ! IN:  Which par for each poly
+      integer NSINE,PSINE(20)             ! IN:  Which par for each sine
+      integer NPOLY,PPOLY(50)             ! IN:  Which par for each poly
       integer NUMINT                      ! IN:  Number numerical integs
       real*8  NINTERVAL                   ! IN:  Time interval num.integ
       real*8 VEXTRA(18)                   ! OUT:  Dependent quantities
@@ -4400,10 +5040,30 @@
       real*8 R1,R2                        ! LOCAL: fractional radii
       real*8 RSUN,GMSUN,GSUN              ! LOCAL: physical constants
       real*8 LP,LS                        ! LOCAL: EBOP/GETMODEL outputs
+      real*8 K1,K2,KSUM                   ! LOCAL: velocity amplitudes
       real*8 ECQPHASES(6)                 ! SUB:   useful orbital phases
       integer i                           ! LOCAL: loop counter
       real*8 GETMODEL                     ! FUNCTION: gets model value
       real*8 ECC,OMEGA,ECOSW,ESINW        ! LOCAL: eccentricity values
+
+            ! VEXTRA(1) = star A fractional radius
+            ! VEXTRA(2) = star B fractional radius
+            ! VEXTRA(3) = light ratio starB/starA
+            ! VEXTRA(4) = eccentricity
+            ! VEXTRA(5) = periastron longitude
+            ! VEXTRA(6) = impact par (pri ecl)
+            ! VEXTRA(7) = impact par (sec ecl)
+            ! VEXTRA(8) = reduced chi-squared
+            ! VEXTRA(9) = orbital semimajor axis
+            ! VEXTRA(10) = mass ratio from RVs
+            ! VEXTRA(11) = mass of star A (Msun)
+            ! VEXTRA(12) = mass of star B (Msun)
+            ! VEXTRA(13) = radius of star A (Rsun)
+            ! VEXTRA(14) = radius of star B (Rsun)
+            ! VEXTRA(15) = logg of star A (c.g.s.)
+            ! VEXTRA(16) = logg of star B (c.g.s.)
+            ! VEXTRA(17) = density of star A (solar units)
+            ! VEXTRA(18) = density of star B (solar units)
 
       do i = 1,18
         VEXTRA(i) = -999.0d0
@@ -4411,8 +5071,8 @@
 
       PI = atan(1.0d0) * 4.0d0
       DEG2RAD = 45.0d0 / atan(1.0d0)
-      RSUN = 6.96d8
-      GMSUN = 1.3271244004d20
+      RSUN = 6.957d8                      ! The IAU 2015 resolution ....
+      GMSUN = 1.3271244d20                !   .... B3 nominal quantities
 
       GSUN = log10(GMSUN*100.0d0/RSUN**2)
       SINI = sin( V(6) / DEG2RAD )
@@ -4423,7 +5083,7 @@
             ! Calculate the reduced chi-squared (need number of fit par)
 
       NVARY = 0
-      do i = 1,138
+      do i = 1,540
         if ( VARY(i) /= 0 ) NVARY = NVARY + 1
       end do
       VEXTRA(8) = CHISQ
@@ -4472,17 +5132,34 @@
       VEXTRA(6) = EFAC / (1.0d0 + ESINW) * COSI / (R1)
       VEXTRA(7) = EFAC / (1.0d0 - ESINW) * COSI / (R1)
 
-            ! calculate semimajor axis (9), mass ratio (10), masses (11
-            ! and 12), radii (13 and 14), log surface gravities (15 and
-            ! 16), and densities (17 and 18) of the two stars if poss.
+      ! calculate these quantities if possible (if K1 and K2 are known):
+      !   VEXTRA(9) = semimajor axis      VEXTRA(14) = radius of star B
+      !   VEXTRA(10) = mass ratio         VEXTRA(15) = logg of star A
+      !   VEXTRA(11) = mass of star A     VEXTRA(16) = logg of star B
+      !   VEXTRA(12) = mass of star B     VEXTRA(17) = density of star A
+      !   VEXTRA(13) = radius of star A   VEXTRA(18) = density of star B
 
-      if ( V(27) >= 0.0d0 .and. V(28) >= 0.0d0 ) then
-        VEXTRA(9) = ACONST * sqrt(EFAC) * (V(27)+V(28)) * V(19) / SINI
-        VEXTRA(10) = V(27) / V(28)
-        VEXTRA(11) = MCONST * EFAC**1.5d0 * (V(27)+V(28))**2 * V(28)
-     &                                                 * V(19) / SINI**3
-        VEXTRA(12) = MCONST * EFAC**1.5d0 * (V(27)+V(28))**2 * V(27)
-     &                                                 * V(19) / SINI**3
+      if ( V(27) >= -1.0d9 .and. V(28) >= -1.0d9 ) then
+        K1 = V(27)
+        K2 = V(28)
+        if ( K1 < 0.0d0 .and. K2 < 0.0d0 ) then
+          write (6,'(A37,A43)') "## Warning: velocity amplitudes were ",
+     &                    "both negative so have been swapped for the "
+          write (6,'(A37,A43)') "## calculation of the physical proper",
+     &                    "ties of the stars. Check the input data.   "
+          K1 = 0.0d0 - V(28)
+          K2 = 0.0d0 - V(27)
+        end if
+        if ( K1 < 0.0d0 ) write (6,'(A58,E15.8)')
+     &   "## Warning: the velocity amplitude of star A is negative: ",K1
+        if ( K2 < 0.0d0 ) write (6,'(A58,E15.8)')
+     &   "## Warning: the velocity amplitude of star B is negative: ",K2
+
+        KSUM = K1 + K2
+        VEXTRA(9) = ACONST * sqrt(EFAC) * KSUM * V(19) / SINI
+        VEXTRA(10) = K1 / K2
+        VEXTRA(11) = MCONST * EFAC**1.5d0 * KSUM**2 *K2* V(19) / SINI**3
+        VEXTRA(12) = MCONST * EFAC**1.5d0 * KSUM**2 *K1* V(19) / SINI**3
         VEXTRA(13) = VEXTRA(9) * R1
         VEXTRA(14) = VEXTRA(9) * R2
         VEXTRA(15) = GSUN + log10(VEXTRA(11)) -(2.0d0*log10(VEXTRA(13)))
@@ -4506,20 +5183,20 @@
             ! DTYPE1=7  it outputs the RV of star A
             ! DTYPE1=8  it outputs the RV of star B
       implicit none
-      real*8 V(138)                  ! IN: Photometric parameters
-      integer VARY(138)              ! IN: Which parameters are fitted
+      real*8 V(540)                  ! IN: Photometric parameters
+      integer VARY(540)              ! IN: Which parameters are fitted
       integer LDTYPE(2)             ! IN: LD law type for the two stars
       real*8 TIME                   ! IN: The given TIME, PHASE or CYCLE
       integer DTYPE1                ! IN: 1-8 depending on wanted result
-      integer NSINE,PSINE(9)        ! IN: number and parameters of sines
-      integer NPOLY,PPOLY(9)        ! IN: number and parameters of polys
+      integer NSINE,PSINE(20)       ! IN: number and parameters of sines
+      integer NPOLY,PPOLY(50)       ! IN: number and parameters of polys
       integer NUMINT                ! IN: Number of numerical integratns
       real*8 NINTERVAL              ! IN: Time interval for integrations
       real*8 LA,LB                  ! OUT: Light produced by each star
       real*8 FMAG,LP,LS             ! LOCAL: LIGHT subroutine output
       real*8 ECC,OMEGA,ECOSW,ESINW  ! LOCAL: orbital shape parameters
       real*8 GETMIN                 ! FUNCTION: returns time of minimum
-      real*8 GETPHASE               ! FUNCTION: returns orbital phase
+!       real*8 GETPHASE               ! FUNCTION: returns orbital phase
       real*8 GETRV                  ! FUNCTION: returns the RV of a star
       real*8 FMAGSUM,LASUM,LBSUM
       integer i
@@ -4560,6 +5237,8 @@
 
       else if ( DTYPE1 == 2 ) then
         CALL LIGHT (V,LDTYPE,NSINE,PSINE,NPOLY,PPOLY,TIME,FMAG,LP,LS)
+        LA = LP
+        LB = LS
         GETMODEL = LS / LP
 
       else if ( DTYPE1 == 3 ) then
@@ -4579,13 +5258,13 @@
         end if
 
       else if ( DTYPE1 == 7 ) then
-        GETMODEL = GETRV (TIME,V,'A')
+        GETMODEL = GETRV (TIME,V,NSINE,PSINE,NPOLY,PPOLY,'A')
 
       else if ( DTYPE1 == 8 ) then
         if ( VARY(30) == -1 ) then
-          GETMODEL = GETRV (TIME,V,'C')
+          GETMODEL = GETRV (TIME,V,NSINE,PSINE,NPOLY,PPOLY,'C')
         else
-          GETMODEL = GETRV (TIME,V,'B')
+          GETMODEL = GETRV (TIME,V,NSINE,PSINE,NPOLY,PPOLY,'B')
         end if
 
       else
@@ -4692,25 +5371,31 @@
 
       END SUBROUTINE ECQUADPHASES
 !=======================================================================
-      DOUBLEPRECISION FUNCTION GETRV (TIME,V,WHICHSTAR)
+      DOUBLEPRECISION FUNCTION GETRV (TIME,V,NSINE,PSINE,NPOLY,PPOLY,
+     $                                WHICHSTAR)
             ! Returns a radial velocity of a star at the given time TIME
             ! WHICHSTAR='A' returns an RV for star A
             ! WHICHSTAR='B' returns an RV for star B
             ! WHICHSTAR='C' returns RV for star B with Vsys from star A
       implicit none
       real*8 TIME                   ! IN: time to calculate the RV for
-      real*8 V(138)                  ! IN: fitted parameters
+      real*8 V(540)                 ! IN: fitted parameters
+      integer NSINE,PSINE(20)       ! IN: number and parameters of sines
+      integer NPOLY,PPOLY(50)       ! IN: number and parameters of polys
       character*1 WHICHSTAR         ! IN: 'A' or 'B' to specify the star
       real*8 PI,DEG2RAD             ! LOCAL: useful constants
       real*8 PHASES(6)              ! LOCAL: useful orbital phases
       real*8 TRUEANOM               ! LOCAL: true anomaly
       real*8 MEANANOM               ! LOCAL: mean anomaly
       real*8 ECCANOM                ! LOCAL: eccentric anomaly
+      real*8 KA,KB,VA,VB            ! LOCAL: orbital parameters
       real*8 KVAL                   ! LOCAL: velocity amplitude (km/s)
       real*8 VSYS                   ! LOCAL: systemic velocity (km/s)
       real*8 ECC,OMEGA,ECOSW,ESINW  ! LOCAL: orbital shape variables
       real*8 TANTD2,PHIANOM,GUESS   ! LOCAL: helper variables
-      integer i                     ! LOCAL: loop counter
+      real*8 SINTERM,POLYTERM       ! LOCAL: sine and poly term values
+      real*8 SINT,SINP,SINA         ! LOCAL: sine parameter values
+      integer i,j                   ! LOCAL: loop counters
       real*8 GETPHASE               ! FUNCTION: calculate orbital phase
 
       PI = atan(1.0d0) * 4.0d0
@@ -4718,12 +5403,82 @@
 
       CALL GETEOMEGA (V(7),V(8),ECC,OMEGA,ECOSW,ESINW)
 
-            ! First calculate the mean anomlay at this time using the
+            ! Modification of 2015/04/24:
+            ! Now need to apply sine and polynomial functions to the
+            ! orbit parameters if required. Copy them from the V array
+            ! to avoid modifying the V array. Then check each sine and
+            ! poly to see what parameter it applies to, and apply the
+            ! term if relevant. All are additive in this case.
+
+      KA = V(27)
+      KB = V(28)
+      VA = V(29)
+      VB = V(30)
+
+      if ( NSINE > 0 ) then
+        do i = 1,NSINE
+          SINT = V(28+i*3)      ! sine reference time
+          SINP = V(29+i*3)      ! sine period
+          SINA = V(30+i*3)      ! sine amplitude
+          SINTERM = SINA * sin( 2.0d0 * PI * (TIME-SINT) / SINP )
+          if ( PSINE(i) == 27 )  KA = KA + SINTERM
+          if ( PSINE(i) == 28 )  KB = KB + SINTERM
+          if ( PSINE(i) == 29 )  VA = VA + SINTERM
+          if ( PSINE(i) == 30 )  VB = VB + SINTERM
+
+          if ( PSINE(i) == 7 .or. PSINE(i) == 8 ) then
+            if ( V(7) >= 9.99d0 ) then
+              if ( PSINE(i) == 7 ) ECC = ECC + SINTERM
+              if ( PSINE(i) == 8 ) OMEGA = OMEGA + SINTERM
+              ECOSW = ECC * cos(OMEGA/DEG2RAD)
+              ESINW = ECC * sin(OMEGA/DEG2RAD)
+            endif
+            if ( V(7) < 9.99d0 ) then
+              if ( PSINE(i) == 7 ) ECOSW = ECOSW + SINTERM
+              if ( PSINE(i) == 8 ) ESINW = ESINW + SINTERM
+              CALL GETEW (ECOSW,ESINW,ECC,OMEGA)
+            endif
+          endif
+        end do
+      end if
+
+      if ( NPOLY > 0 ) then
+        do i = 1,NPOLY
+          j = 91 + 9*(i-1)
+          POLYTERM = V(j+3) + V(j+4)*(TIME-V(j))
+     &                      + V(j+5)*((TIME-V(j))**2)
+     &                      + V(j+6)*((TIME-V(j))**3)
+     &                      + V(j+7)*((TIME-V(j))**4)
+     &                      + V(j+8)*((TIME-V(j))**5)
+          if ( TIME < V(j+1) ) POLYTERM = 0.0d0
+          if ( TIME > V(j+2) ) POLYTERM = 0.0d0
+          if ( PPOLY(i) == 27 )  KA = KA + POLYTERM
+          if ( PPOLY(i) == 28 )  KB = KB + POLYTERM
+          if ( PPOLY(i) == 29 )  VA = VA + POLYTERM
+          if ( PPOLY(i) == 30 )  VB = VB + POLYTERM
+
+          if ( PPOLY(i) == 7 .or. PPOLY(i) == 8 ) then
+            if ( V(7) >= 9.99d0 ) then
+              if ( PPOLY(i) == 7 ) ECC = ECC + POLYTERM
+              if ( PPOLY(i) == 8 ) OMEGA = OMEGA + POLYTERM
+              ECOSW = ECC * cos(OMEGA/DEG2RAD)
+              ESINW = ECC * sin(OMEGA/DEG2RAD)
+            endif
+            if ( V(7) < 9.99d0 ) then
+              if ( PPOLY(i) == 7 ) ECOSW = ECOSW + POLYTERM
+              if ( PPOLY(i) == 8 ) ESINW = ESINW + POLYTERM
+              CALL GETEW (ECOSW,ESINW,ECC,OMEGA)
+            endif
+          endif
+        end do
+      end if
+
+            ! First calculate the mean anomaly at this time using the
             ! time of periastron from the ECQUADPHASES subroutine.
 
       CALL ECQUADPHASES (V(7),V(8),V(16),PHASES)
       PHIANOM = getphase(TIME,V(19),V(20)) - PHASES(5)
-      MEANANOM = 2.0d0 * PI  * mod(PHIANOM,1.0d0)
+      MEANANOM = 2.0d0 * PI * mod(PHIANOM,1.0d0)
 
             ! Now calculate the true anomaly iteratively. This approach
             ! uses the MCMC code of Andrew Cameron as a starting point.
@@ -4733,25 +5488,28 @@
          ECCANOM = MEANANOM + ECC*sin(GUESS)
          if ( abs(ECCANOM-GUESS) < 1.0d-5 ) exit
          GUESS = ECCANOM
-         if (i >= 100) write (6,'(A26,A54)') "## Warning: calculation ",
-     &         "of true anomaly in function GETRV did not converge.   "
+         if (i >= 100) write (6,'(A11,A54,A31,4(f11.6))') "## Warning:",
+     &         " calculation of true anomaly in function GETRV did not",
+     &         " converge. e, w, ecosw, esinw =", ECC,OMEGA,ECOSW,ESINW
       end do
 
       TANTD2 = sqrt((1.0d0+ECC)/(1.0d0-ECC)) * tan(ECCANOM/2.0d0)
       TRUEANOM = atan(TANTD2) * 2.0d0
 
+            ! Now decide which orbit is wanted and do the calculation
+
       if ( WHICHSTAR == 'A' ) then
-        KVAL = V(27)
-        VSYS = V(29)
+        KVAL = KA
+        VSYS = VA
       else if ( WHICHSTAR == 'B' ) then
-        KVAL = 0.0d0 - V(28)
-        VSYS = V(30)
+        KVAL = 0.0d0 - KB
+        VSYS = VB
       else if ( WHICHSTAR == 'C' ) then
-        KVAL = 0.0d0 - V(28)
-        VSYS = V(29)
+        KVAL = 0.0d0 - KB
+        VSYS = VA
       else
         write (6,'(A39,A41)') "### ERROR: the value of WHICHSTAR passe",
-     &                      "d to functon GETRV is not 'A' or 'B'.    "
+     &                      "d to functon GETRV is not 'A', 'B' or 'C'"
         STOP
       end if
 
@@ -4782,18 +5540,6 @@
             ! actually e*cos(omega) and e*sin(omega)
 
       CALL GETEOMEGA (ECCIN,OMEGAIN,ECC,OMEGA,ECOSW,ESINW)
-
-!       if ( ECCIN > 10.0d0 ) then
-!         ECC = ECCIN - 10.0d0
-!         OMEGA = OMEGAIN / DEG2RAD
-!         ECOSW = ECC * cos(OMEGA)
-!         ESINW = ECC * sin(OMEGA)
-!       else
-!         ECC = sqrt(ECCIN**2 + OMEGAIN**2)
-!         OMEGA = atan2(OMEGAIN,ECCIN)
-!         ECOSW = ECCIN
-!         ESINW = OMEGAIN
-!       end if
 
             ! If orbit is circular then simply use the orbital ephemeris
             ! If orbit is eccentric then call ECQUADPHASES to calculate
@@ -4866,32 +5612,31 @@
             ! avoid passing parameters through MRQMIN and related code.
       implicit none
       integer MAXDATA                     ! IN: max number of datapoints
-      character DATAFORM*1                ! IN: MAXDATA character length
       real*8 DATX(MAXDATA)                ! IN: Data independent varible
       real*8 DATY(MAXDATA)                ! IN: Data dependent variables
       real*8 DATERR(MAXDATA)              ! IN: Data errorbars
       integer DTYPE(MAXDATA)              ! IN: Types of datapoints
       integer NDATA,NLR,NMIN              ! IN: Numbers of datapoints
-      real*8 V(138)                        ! IN: EBOP parameter values
-      integer VARY(138)                    ! IN: Whether parameters vary
+      real*8 V(540)                       ! IN: EBOP parameter values
+      integer VARY(540)                   ! IN: Whether parameters vary
       integer LDTYPE(2)                   ! IN: Type of LD law for stars
-      integer NSINE,NL3,NECW,NESW         ! IN: Numbers of sines and L3s
-      integer PSINE(9)                    ! IN: Which par for each sine
-      integer NPOLY,PPOLY(9)              ! IN: Similar for polynomials
+      integer NL3,NECW,NESW               ! IN: Number of L3,ecosw,esinw
+      integer NSINE,PSINE(20)             ! IN: number sines, which pars
+      integer NPOLY,PPOLY(50)             ! IN: number polys, which pars
       integer NUMINT                      ! IN: Number of numerical ints
       real*8 NINTERVAL                    ! IN: Time interval for numint
       integer ITER                        ! OUT: Number of iterations
       real*8 CHISQ                        ! OUT: Reduced chi-squared
-      real*8 VERR(138)                     ! OUT: Formal parameter errors
+      real*8 VERR(540)                    ! OUT: Formal parameter errors
       integer ERROR                       ! OUT: Whether fit successful
       real*8 SIG(MAXDATA)                 ! SUB: abs(DATERR)
       real*8 LAMBDA                       ! LOCAL: Marquardt lambda
-      real*8 COVAR(138,138),ALPHA(138,138)    ! LOCAL: Covariance etc matrix
+      real*8 COVAR(540,540),ALPHA(540,540)! LOCAL: Covariance etc matrix
       real*8 OCHISQ                       ! LOCAL: Previous chi-squared
-      integer i,j,NVARY                   ! LOCAL: helpful integers
+      integer i,NVARY                     ! LOCAL: helpful integers
       integer CLDTYPE(2)                  ! COMMON: for EBOP subroutine
-      integer CNSINE,CPSINE(9)            ! COMMON: for EBOP subroutine
-      integer CNPOLY,CPPOLY(9)            ! COMMON: for EBOP subroutine
+      integer CNSINE,CPSINE(20)           ! COMMON: for EBOP subroutine
+      integer CNPOLY,CPPOLY(50)           ! COMMON: for EBOP subroutine
       real*8 CNINTERVAL                   ! COMMON: for EBOP subroutine
       integer CNUMINT                     ! COMMON: for EBOP subroutine
 
@@ -4903,8 +5648,10 @@
       CLDTYPE(2) = LDTYPE(2)
       CNSINE = NSINE
       CNPOLY = NPOLY
-      do i = 1,9
+      do i = 1,20
         CPSINE(i) = PSINE(i)
+      end do
+      do i = 1,50
         CPPOLY(i) = PPOLY(i)
       end do
       CNUMINT = NUMINT
@@ -4915,7 +5662,7 @@
       end do
 
       NVARY = 0
-      do i = 1,138
+      do i = 1,540
         if ( VARY(i) == 1 .or. VARY(i) == 3 ) NVARY = NVARY + 1
       end do
 
@@ -4932,11 +5679,11 @@
 
         LAMBDA = -1.0d0
         OCHISQ = 1.0d10
-        CALL MRQMIN (DATX,DATY,SIG,DTYPE,NDATA,V,VARY,138,COVAR,ALPHA,
-     &                                           138,CHISQ,LAMBDA,ERROR)
-        do i = 1,100
-          CALL MRQMIN (DATX,DATY,SIG,DTYPE,NDATA,V,VARY,138,COVAR,ALPHA,
-     &                                           138,CHISQ,LAMBDA,ERROR)
+        CALL MRQMIN (DATX,DATY,SIG,DTYPE,NDATA,V,VARY,540,COVAR,ALPHA,
+     &                                           540,CHISQ,LAMBDA,ERROR)
+        do i = 1,199
+          CALL MRQMIN (DATX,DATY,SIG,DTYPE,NDATA,V,VARY,540,COVAR,ALPHA,
+     &                                           540,CHISQ,LAMBDA,ERROR)
           if ( LAMBDA >= 1.0d10 .and. abs(OCHISQ/CHISQ) < 1.001 ) exit
           if ( ERROR /= 0 ) exit
           OCHISQ = CHISQ
@@ -4946,12 +5693,12 @@
       end if
 
       LAMBDA = 0.0d0
-      CALL MRQMIN (DATX,DATY,SIG,DTYPE,NDATA,V,VARY,138,COVAR,ALPHA,138,
+      CALL MRQMIN (DATX,DATY,SIG,DTYPE,NDATA,V,VARY,540,COVAR,ALPHA,540,
      &                                               CHISQ,LAMBDA,ERROR)
 
             ! Now record the formal errors outputted by MRQMIN
 
-      do i = 1,138
+      do i = 1,540
         VERR(i) = sqrt(COVAR(i,i))
         if ( DATERR(1) < 0.0d0 )
      &            VERR(i) =  VERR(i) * sqrt( CHISQ / dble(NDATA-NVARY) )
@@ -4959,11 +5706,11 @@
 
       if ( V(6) > 90.0d0 ) V(6) = 180.0d0 - V(6)
 
-      if ( LDTYPE(2) == 0 ) then
+      if ( LDTYPE(2) == -1 ) then
         V(5) = V(4)
         VERR(5) = VERR(4)
-        V(22) = V(21)
-        VERR(22) = VERR(21)
+        V(24) = V(21)
+        VERR(24) = VERR(21)
       end if
 
       if ( DATERR(1) > 0.0d0 )  CHISQ = CHISQ / dble(NDATA-NVARY)
@@ -4984,24 +5731,24 @@
       implicit none
       integer DTYPE1                ! IN: type of the datapoint
       real*8 X                      ! IN: Time to  calculate results for
-      real*8 V(138)                  ! IN: The   photometric   parameters
+      real*8 V(540)                 ! IN: The   photometric   parameters
       integer NCOEFFS               ! IN: Total number of adjustd params
-      integer VARY(138)              ! IN:  Which params  being  adjusted
+      integer VARY(540)             ! IN:  Which params  being  adjusted
       character*1 DODYDA            ! IN: 'y' or 'n' todothe derivatives
       real*8 Y                      ! OUT:  Output result for input time
-      real*8 DYDA(138)               ! OUT:   The numerical differentials
+      real*8 DYDA(540)              ! OUT:   The numerical differentials
       real*8 LP,LS                  ! LOCAL: Light produced by each star
       real*8 OUT1,OUT2              ! LOCAL: Help in finding derivatives
       real*8 STORE                  ! LOCAL: Help in finding derivatives
-      real*8 DV(138)                 ! LOCAL: Amount to perturb params by
-      integer i,j,k,ERROR           ! LOCAL: Loop counters and errorflag
+      real*8 DV(540)                ! LOCAL: Amount to perturb params by
+      real*8 R1,R2                  ! LOCAL: fractional radii
+      integer i                     ! LOCAL: Loop counter
       real*8 GETMODEL               ! FUNCTION: Returns model evaluation
       integer LDTYPE(2)             ! IN/COMMON: LD law types  for stars
-      integer NSINE,PSINE(9)
-      integer NPOLY,PPOLY(9)
-      real*8 R1,R2
-      integer NUMINT                      ! IN: Number of numerical ints
-      real*8 NINTERVAL                    ! IN: Time interval for numint
+      integer NSINE,PSINE(20)       ! IN/COMMON: numbr sines, which pars
+      integer NPOLY,PPOLY(50)       ! IN/COMMON: numbr polys, which pars
+      integer NUMINT                ! IN/COMMON: numbr of numerical ints
+      real*8 NINTERVAL              ! IN/COMMON: timeinterval for numint
 
       common / FOREBOP / NINTERVAL,LDTYPE,NSINE,PSINE,NPOLY,PPOLY,NUMINT
 
@@ -5103,30 +5850,38 @@
       END SUBROUTINE GETEW
 !=======================================================================
       SUBROUTINE LIGHT (V,LDTYPE,NSINE,PSINE,NPOLY,PPOLY,HJD,FMAG,LP,LS)
+            ! This is the subroutine where a single brightness is calcu-
+            ! lated for a specific time given a set of system parametrs.
+            ! The EBOP code (Etzel, 1981psbs.conf..111E) implements the
+            ! NDE model (Nelson & Davis, 1972ApJ...174..617N) to do so.
+            ! The LIGHT, BIAX and GETEW subroutines are the only pieces
+            ! of code from EBOP that still remains in JKTEBOP. They are
+            ! used with permission of Dr Paul B. Etzel (see Southworth,
+            ! Smalley, Maxted, Claret & Etzel, 2005MNRAS.363..529S).
       implicit real*8 (a-h,o-z)
-      real*8 V(138),HJD,GETPHASE
+      real*8 V(540),HJD,GETPHASE
       real*8 LP,LS,LECL,LE
       real*8 LD1U,LD2U            ! linear LD coeff for each star
       real*8 LD1Q,LD2Q            ! quadratic LD coeff for each star
-      real*8 LD1S,LD2S            ! square-root LD coeff for each star
       real*8 LD1L,LD2L            ! logarithmic LD coeff for each star
+      real*8 LD1S,LD2S            ! square-root LD coeff for each star
       real*8 LD1C,LD2C            ! cubic LD coeff for each star
+      real*8 LD1POW1,LD2POW1      ! power-2 LD coeff for each star
+      real*8 LD1POW2,LD2POW2      ! power-2 LD coeff for each star
       real*8 LD11,LD21            ! 4-par LD coeff 1 for each star
       real*8 LD12,LD22            ! 4-par LD coeff 2 for each star
       real*8 LD13,LD23            ! 4-par LD coeff 3 for each star
       real*8 LD14,LD24            ! 4-par LD coeff 4 for each star
       real*8 LDU,LDQ,LDS,LDL,LDC  ! LD coeffs for the star in question
+      real*8 LDPOW1,LDPOW2        ! LD coeffs for the star in question
       real*8 LD1,LD2,LD3,LD4      ! LD coeffs for the star in question
+      real*8 LD1UEQ,LD2UEQ        ! equivalent linear LD coefficients
       integer LDTYPE(2)           ! LD law type for both stars
-      integer NSINE,PSINE(9)
-      integer NPOLY,PPOLY(9)
+      integer NSINE,PSINE(20)             ! IN: number sines, which pars
+      integer NPOLY,PPOLY(50)             ! IN: number polys, which pars
       real*8 PHASE,SINT,SINP,SINA,SINTERM,POLYTERM,LPMULT,LSMULT
       real*8 ECC,OMEGA,ECOSW,ESINW        ! LOCAL: eccentricity values
-
-      integer GIMENEZ             ! 1 to use original FMAX calculations
-                                  ! 2 to use Gimenez' modified calcs
-                                  ! 3 to use Gimenez' nonlinear LD calcs
-      GIMENEZ = 3
+      real*8 PERIOD,TZERO                 ! Orbital period and ref time
 
       DEG2RAD = 45.0d0 / atan(1.0d0)
 
@@ -5136,7 +5891,7 @@
         CALL OCCULTSMALL(V,HJD,FMAG)
         LP = 1.0d0
         LS = 0.0d0
-!         write(71,*),fmag
+!         write(71,*)fmag
         return
       end if
 
@@ -5177,9 +5932,27 @@ C
       DPH    = 1.0d0 - V(16)
       SFACT  = V(17)
       DGAM   = V(18)
+      PERIOD = V(19)
+      TZERO  = V(20)
 
-      LD1U = V(4)               ! linear terms
-      LD2U = V(5)
+            ! Now put the fractional radii into RP and RS.
+            ! There are two options here: the default that the numbers
+            ! supplied are actually (r1+r2) and k, and the alternative
+            ! (indicated by a negative r1+r2) that they are -r1 and r2
+
+      if ( V(2) >= 0.0d0 ) then
+        RP = V(2) / ( 1.0d0 + V(3) )
+        RS = V(2) / ( 1.0d0 + (1.0d0/V(3)) )
+      else
+        RP = abs( V(2) )
+        RS = V(3)
+      end if
+
+            ! Limb darkening now.
+            ! First set all the possible LD coefficients to zero
+
+      LD1U = 0.0d0              ! linear terms
+      LD2U = 0.0d0
       LD1L = 0.0d0              ! log terms
       LD2L = 0.0d0
       LD1S = 0.0d0              ! sqrt terms
@@ -5189,62 +5962,129 @@ C
       LD1C = 0.0d0              ! cubic terms
       LD2C = 0.0d0
 
-      LD11 = 0.0d0              ! ^(1/2) terms
+      LD1POW1 = 0.0d0           ! power-2 law coefficients
+      LD1POW2 = 0.0d0
+      LD2POW1 = 0.0d0
+      LD2POW2 = 0.0d0
+
+      LD11 = 0.0d0              ! Claret 4-par law ^(1/2) terms
       LD21 = 0.0d0
-      LD12 = 0.0d0              ! ^1 terms
+      LD12 = 0.0d0              ! Claret 4-par law ^1 terms
       LD22 = 0.0d0
-      LD13 = 0.0d0              ! ^(3/2) terms
+      LD13 = 0.0d0              ! Claret 4-par law ^(3/2) terms
       LD23 = 0.0d0
-      LD14 = 0.0d0              ! ^4 terms
+      LD14 = 0.0d0              ! Claret 4-par law ^2 terms
       LD24 = 0.0d0
 
-      if ( LDTYPE(1) == 2 ) LD1L = V(21)
-      if ( LDTYPE(1) == 3 ) LD1S = V(21)
-      if ( LDTYPE(1) == 4 ) LD1Q = V(21)
-      if ( LDTYPE(1) == 5 ) LD1C = V(21)
-      if ( LDTYPE(2) == 2 ) LD2L = V(24)
-      if ( LDTYPE(2) == 3 ) LD2S = V(24)
-      if ( LDTYPE(2) == 4 ) LD2Q = V(24)
-      if ( LDTYPE(2) == 5 ) LD2C = V(24)
+            ! Now insert the LD coefficients into the correct variables
+            ! for star A. If we are using the re-parameterisations then
+            ! we need to do the **opposite*( transformation to get back
+            ! to the original LD coefficients as used below.
 
-      if ( LDTYPE(2) == 0 ) then
-        LD2U = LD1U
-        LD2L = LD1L
-        LD2S = LD1S
-        LD2Q = LD1Q
-        LD2C = LD1C
-      end if
-
-      if ( LDTYPE(1) == 6 ) then
-        LD1U = 0.0d0
+      if ( LDTYPE(1) == 1 ) then
+        LD1U = V(4)
+      else if ( LDTYPE(1) == 2 ) then
+        LD1U = V(4)
+        LD1Q = V(21)
+      else if ( LDTYPE(1) == 3 ) then
+        LD1U = V(4)
+        LD1L = V(21)
+      else if ( LDTYPE(1) == 4 ) then
+        LD1U = V(4)
+        LD1S = V(21)
+      else if ( LDTYPE(1) == 5 ) then
+        LD1U = V(4)
+        LD1C = V(21)
+      else if ( LDTYPE(1) == 6 ) then
+        LD1POW1 = V(4)
+        LD1POW2 = V(21)
+      else if ( LDTYPE(1) == 9 ) then
         LD11 = V(4)
         LD12 = V(21)
         LD13 = V(22)
         LD14 = V(23)
-        if ( LDTYPE(2) == 0 ) then
-          LD2U = 0.0d0
-          LD21 = LD11
-          LD22 = LD12
-          LD23 = LD13
-          LD24 = LD14
-        end if
-      end if
+      else if ( LDTYPE(1) == -2 ) then
+        LD1U = (V(4) + V(21)) / 2.0d0
+        LD1Q = (V(4) - V(21)) / 2.0d0 / 0.6d0
+      else if ( LDTYPE(1) == -3 ) then
+        LD1U = (V(4) + V(21)) / 2.0d0
+        LD1L = (V(4) - V(21)) / 2.0d0 / 0.6d0
+      else if ( LDTYPE(1) == -4 ) then
+        LD1U = (V(4) + V(21)) / 2.0d0
+        LD1S = (V(4) - V(21)) / 2.0d0 / 0.6d0
+      else if ( LDTYPE(1) == -5 ) then
+        LD1U = (V(4) + V(21)) / 2.0d0
+        LD1S = (V(4) - V(21)) / 2.0d0 / 0.3d0
+      else if ( LDTYPE(1) == -6 ) then
+        LD1POW1 = 1.0d0 - V(4) + V(21)
+        LD1POW2 = log10(LD1POW1/V(21)) / log10(2.0d0)    ! to get log_2
+      else
+        write(6,*) " "
+        write(6,*) "### ERROR: wrong LDTYPE(1) in subroutine LIGHT."
+        write(6,*) " "
+        stop
+      endif
 
-      if ( LDTYPE(2) == 6 ) then
-        LD2U = 0.0d0
+            ! Now insert the LD coefficients into the correct variables
+            ! for star B. See the description of this above for star A.
+            ! The differences are the variable names and array indices,
+            ! and that star B can be fixed to the same LDCs as star A.
+
+      if ( LDTYPE(2) == 1 ) then
+        LD2U = V(5)
+      else if ( LDTYPE(2) == 2 ) then
+        LD2U = V(5)
+        LD2Q = V(24)
+      else if ( LDTYPE(2) == 3 ) then
+        LD2U = V(5)
+        LD2L = V(24)
+      else if ( LDTYPE(2) == 4 ) then
+        LD2U = V(5)
+        LD2S = V(24)
+      else if ( LDTYPE(2) == 5 ) then
+        LD2U = V(5)
+        LD2C = V(24)
+      else if ( LDTYPE(2) == 6 ) then
+        LD2POW1 = V(5)
+        LD2POW2 = V(24)
+      else if ( LDTYPE(2) == 9 ) then
         LD21 = V(5)
         LD22 = V(24)
         LD23 = V(25)
         LD24 = V(26)
-      end if
-
-      if ( V(2) >= 0.0d0 ) then
-        RP = V(2) / ( 1.0d0 + V(3) )
-        RS = V(2) / ( 1.0d0 + (1.0d0/V(3)) )
+      else if ( LDTYPE(2) == -2 ) then
+        LD2U = (V(5) + V(24)) / 2.0d0
+        LD2Q = (V(5) - V(24)) / 2.0d0 / 0.6d0
+      else if ( LDTYPE(2) == -3 ) then
+        LD2U = (V(5) + V(24)) / 2.0d0
+        LD2L = (V(5) - V(24)) / 2.0d0 / 0.6d0
+      else if ( LDTYPE(2) == -4 ) then
+        LD2U = (V(5) + V(24)) / 2.0d0
+        LD2S = (V(5) - V(24)) / 2.0d0 / 0.6d0
+      else if ( LDTYPE(2) == -5 ) then
+        LD2U = (V(5) + V(24)) / 2.0d0
+        LD2S = (V(5) - V(24)) / 2.0d0 / 0.3d0
+      else if ( LDTYPE(2) == -6 ) then
+        LD2POW1 = 1.0d0 - V(5) + V(24)
+        LD2POW2 = log10(LD2POW1/V(24)) / log10(2.0d0)    ! to get log_2
+      else if ( LDTYPE(2) == -1 ) then
+        LD2U    = LD1U
+        LD2Q    = LD1Q
+        LD2L    = LD1L
+        LD2S    = LD1S
+        LD2C    = LD1C
+        LD2POW1 = LD1POW1
+        LD2POW2 = LD1POW2
+        LD21    = LD11
+        LD22    = LD12
+        LD23    = LD13
+        LD24    = LD14
       else
-        RP = abs( V(2) )
-        RS = V(3)
-      end if
+        write(6,*) " "
+        write(6,*) "### ERROR: wrong LDTYPE(2) in subroutine LIGHT."
+        write(6,*) " "
+        stop
+      endif
 
 !        print*," "
 !        print*,"RP   ",RP
@@ -5263,33 +6103,41 @@ C
 !        print*,"Pshft",DPH
 !        print*,"SFACT",SFACT
 !        print*,"intrg",DGAM
-!        print*,"Porb ",V(19)
-!        print*,"Tpri ",V(20)
-!        print*,"LD1U ",LD1U
-!        print*,"LD2U ",LD2U
-!        print*,"LD1L ",LD1L
-!        print*,"LD2L ",LD2L
-!        print*,"LD1S ",LD1S
-!        print*,"LD2S ",LD2S
-!        print*,"LD1Q ",LD1Q
-!        print*,"LD2Q ",LD2Q
-!        print*,"LD1C ",LD1C
-!        print*,"LD2C ",LD2C
-!        print*,"LD11 ",LD11
-!        print*,"LD21 ",LD21
-!        print*,"LD12 ",LD12
-!        print*,"LD22 ",LD22
-!        print*,"LD13 ",LD13
-!        print*,"LD23 ",LD23
-!        print*,"LD14 ",LD14
-!        print*,"LD24 ",LD24
+!        print*,"Porb ",PERIOD
+!        print*,"Tpri ",TZERO
+!        print*,"LD1U    ",LD1U
+!        print*,"LD2U    ",LD2U
+!        print*,"LD1L    ",LD1L
+!        print*,"LD2L    ",LD2L
+!        print*,"LD1S    ",LD1S
+!        print*,"LD2S    ",LD2S
+!        print*,"LD1Q    ",LD1Q
+!        print*,"LD2Q    ",LD2Q
+!        print*,"LD1C    ",LD1C
+!        print*,"LD2C    ",LD2C
+!        print*,"LD11    ",LD11
+!        print*,"LD21    ",LD21
+!        print*,"LD12    ",LD12
+!        print*,"LD22    ",LD22
+!        print*,"LD13    ",LD13
+!        print*,"LD23    ",LD23
+!        print*,"LD14    ",LD14
+!        print*,"LD24    ",LD24
+!        print*,"LD1POW1 ",LD1POW1
+!        print*,"LD1POW2 ",LD1POW2
+!        print*,"LD1H1   ",LD1H1
+!        print*,"LD1H2   ",LD1H2
+!        print*,"LD2POW1 ",LD2POW1
+!        print*,"LD2POW2 ",LD2POW2
+!        print*,"LD2H1   ",LD2H1
+!        print*,"LD2H2   ",LD2H2
 !        stop
 
       if ( NSINE > 0 ) then
         do i = 1,NSINE
-          SINT = V(28+i*3)      ! sine reference time
-          SINP = V(29+i*3)      ! sine period
-          SINA = V(30+i*3)      ! sine amplitude
+          SINT = V(31+(i-1)*3)      ! sine reference time
+          SINP = V(32+(i-1)*3)      ! sine period
+          SINA = V(33+(i-1)*3)      ! sine amplitude
           SINTERM = SINA * sin( TWOPI * (HJD-SINT) / SINP )
           if ( PSINE(i) ==  1 )  BS = BS * (1.0d0+SINTERM)
           if ( PSINE(i) ==  2 )  RP = RP * (1.0d0+SINTERM)
@@ -5297,6 +6145,7 @@ C
           if ( PSINE(i) ==  6 )  FI = FI + SINTERM
           if ( PSINE(i) == 15 )  EL = EL * (1.0d0+SINTERM)
           if ( PSINE(i) == 17 )  SFACT = SFACT + SINTERM
+          if ( PSINE(i) == 20 )  TZERO = TZERO + SINTERM
           if ( PSINE(i) == -1 )  LPMULT = LPMULT * (1.0d0+SINTERM)
           if ( PSINE(i) == -2 )  LSMULT = LSMULT * (1.0d0+SINTERM)
 
@@ -5324,12 +6173,12 @@ C
 
       if ( NPOLY > 0 ) then
         do i = 1,NPOLY
-          j = 49 + (i*9)
+          j = 91 + 9*(i-1)
           POLYTERM = V(j+3) + V(j+4)*(HJD-V(j))
-     &               + V(j+5)*((HJD-V(j))**2)
-     &               + V(j+6)*((HJD-V(j))**3)
-     &               + V(j+7)*((HJD-V(j))**4)
-     &               + V(j+8)*((HJD-V(j))**5)
+     &                      + V(j+5)*((HJD-V(j))**2)
+     &                      + V(j+6)*((HJD-V(j))**3)
+     &                      + V(j+7)*((HJD-V(j))**4)
+     &                      + V(j+8)*((HJD-V(j))**5)
           if ( HJD < V(j+1) ) POLYTERM = 0.0d0
           if ( HJD > V(j+2) ) POLYTERM = 0.0d0
           if ( PPOLY(i) ==  1 )  BS = BS + POLYTERM
@@ -5338,6 +6187,7 @@ C
           if ( PPOLY(i) ==  6 )  FI = FI + POLYTERM
           if ( PPOLY(i) == 15 )  EL = EL + POLYTERM
           if ( PPOLY(i) == 17 )  SFACT = SFACT + POLYTERM
+          if ( PPOLY(i) == 20 )  TZERO = TZERO + POLYTERM
           if ( PPOLY(i) == -1 )  LPMULT = LPMULT + POLYTERM
           if ( PPOLY(i) == -2 )  LSMULT = LSMULT + POLYTERM
 
@@ -5347,19 +6197,17 @@ C
               if ( PPOLY(i) == 8 ) OMEGA = OMEGA + POLYTERM
               ECOSW = ECC * cos(OMEGA/DEG2RAD)
               ESINW = ECC * sin(OMEGA/DEG2RAD)
-!               write(35,'(5(f20.10))')ECC,OMEGA,ECOSW,ESINW
             endif
             if ( V(7) < 9.99d0 ) then
               if ( PPOLY(i) == 7 ) ECOSW = ECOSW + POLYTERM
               if ( PPOLY(i) == 8 ) ESINW = ESINW + POLYTERM
               CALL GETEW (ECOSW,ESINW,ECC,OMEGA)
-!               write(36,'(5(f20.10))')ECC,OMEGA,ECOSW,ESINW
             endif
           endif
         end do
       end if
 
-      PHASE = GETPHASE(HJD,V(19),V(20))
+      PHASE = GETPHASE(HJD,PERIOD,TZERO)
 
 ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! !         RS=RP*RATIO
       if ( Q <= 0.0d0 ) then
@@ -5457,164 +6305,79 @@ C        PHOTOMETRIC EFFECTS
 C
 C
 
-      FMAXP = 0.0d0
-      FMAXS = 0.0d0
-      DELTP = 0.0d0
-      DELTS = 0.0d0
-      SHORT = 0.0d0
+!----------------------------------------------------------------------!
+! Modifications for version 40, May 2020, by JKT                       !
+! and modifications for version 42, March 2022, by JKT                 !
+! and modifications for version 43, September 2022, by JKT             !
+!----------------------------------------------------------------------!
+! Now to sort out the limb darkening and gravity darkening normalisation
+! plus the ellipsoidal effect. One problem is that I only have an equat-
+! ion for flux normalisation with gravity darkening in the case of the
+! linear LD law. Solution: convert all the more complex laws into an
+! equivalent for the linear law that gives the same disc-integrated LD.
+! Some of my derivations were checked against Heller (arXiv:1901.01730).
 
-!-----------------------------------------------------------------------
-! Alvaro Gimenez and J Diaz-Cordoves have corrected the treatment of LD
-! and stellar shapes.  This treatment can be used by putting GIMENEZ=2
-! Their treatment for nonlinear LD can be used by putting GIMENEZ=3
-!-----------------------------------------------------------------------
-! This whole thing affects only the brightness normalisation of the two
-! eclipsing stars: any problems here affect the radiative parameters
-! but not the geometric parameters (radii, inclination etc).
-!-----------------------------------------------------------------------
+      FMAXP = 0.0d0           ! Disc-integrated flux for the primary
+      FMAXS = 0.0d0           ! Disc-integrated flux for the secondary
+      DELTP = 0.0d0           ! Change in brightness due to oblateness
+      DELTS = 0.0d0           ! Change in brightness due to oblateness
+      SHORT = 0.0d0           ! Foreshortening
 
-      if ( GIMENEZ==1 ) then                          ! LINEAR LD ONLY
+            ! Remember that all unused LD coeffs will be set to zero
+            ! so we can do all the LD laws in one equation.
+            ! First do the calculations for spherical stars.
 
-!       FMAXP=((1.0E0-UP)+0.666666667E0*UP*(1.0E0+0.2E0*EP)) ! Original
-!      1      *(1.0E0+3.0E0*YP*EP)/(1.0E0-EP)                ! lines
-!       FMAXS=((1.0E0-US)+0.666666667E0*US*(1.0E0+0.2E0*ES)) ! if the
-!      1      *(1.0E0+3.0E0*YS*ES)/(1.0E0-ES)                ! stars
-!       DELTP=(15.0E0+UP)/(15.0E0-5.0E0*UP)*(1.0E0+YP)*EP    ! are
-!       DELTS=(15.0E0+US)/(15.0E0-5.0E0*US)*(1.0E0+YS)*ES    ! oblate
-!       SHORT=SINI2*CSVWT*CSVWT
+      if ( Q < 0.0d0 ) then
+        FMAXP = 1.0d0 - LD1U/3.0d0 - LD1Q/6.0d0 - LD1C/10.0d0
+     &                - LD1S/5.0d0 + LD1L*2.0d0/9.0d0 - LD11/5.0d0
+     &                - LD12/3.0d0 - LD13*3.0d0/7.0d0 - LD14/2.0d0
+     &                - LD1POW1 + 2.0d0*LD1POW1/(LD1POW2+2.0d0)
 
-!    26 FMAXP=1.0E0-UP/3.0E0                                 ! Original
-!       FMAXS=1.0E0-US/3.0E0                                 ! lines if
-!       DELTP=0.0E0                                          ! the stars
-!       DELTS=0.0E0                                          ! are
-!       SHORT=0.0                                            ! spherical
-
-        if ( Q >= 0.0d0 ) then
-          FMAXP=((1.0d0-LD1U)+0.666666667d0*LD1U*(1.0d0+0.2d0*EP))
-     1        *(1.0d0+3.0d0*YP*EP)/(1.0d0-EP)
-          FMAXS=((1.0d0-LD2U)+0.666666667d0*LD2U*(1.0d0+0.2d0*ES))
-     1        *(1.0d0+3.0d0*YS*ES)/(1.0d0-ES)
-          DELTP=(15.0d0+LD1U)/(15.0d0-5.0d0*LD1U)*(1.0d0+YP)*EP
-          DELTS=(15.0d0+LD2U)/(15.0d0-5.0d0*LD2U)*(1.0d0+YS)*ES
-          SHORT=SINI2*CSVWT*CSVWT
-        else
-          FMAXP=1.0d0-LD1U/3.0d0
-          FMAXS=1.0d0-LD2U/3.0d0
-          DELTP=0.0d0
-          DELTS=0.0d0
-          SHORT=0.0
-        end if
-!-----------------------------------------------------------------------
-
-      else if ( GIMENEZ==2 ) then                     ! LINEAR LD ONLY
-
-!       FMAXP=(1.0E0-UP*(1.0E0-2.0E0/5.0E0*EP)/3.0E0+YP*EP   ! Original
-!      1      *(3.0E0-13.0E0/15.0E0*UP))/(1.0E0-EP)          ! lines
-!       FMAXS=(1.0E0-US*(1.0E0-2.0E0/5.0E0*ES)/3.0E0+YS*ES   ! if the
-!      1      *(3.0E0-13.0E0/15.0E0*US))/(1.0E0-ES)          ! stars
-!       DELTP=(15.0E0+UP)/(15.0E0-5.0E0*UP)*(1.0E0+YP)*EP    ! are
-!       DELTS=(15.0E0+US)/(15.0E0-5.0E0*US)*(1.0E0+YS)*ES    ! oblate
-!       SHORT=SINI2*CSVWT*CSVWT
-
-!    26 FMAXP=1.0E0-UP/3.0E0                                 ! Original
-!       FMAXS=1.0E0-US/3.0E0                                 ! lines if
-!       DELTP=0.0E0                                          ! the stars
-!       DELTS=0.0E0                                          ! are
-!       SHORT=0.0                                            ! spherical
-
-        if ( Q >= 0.0d0 ) then
-          FMAXP=(1.0d0-LD1U*(1.0d0-2.0d0/5.0d0*EP)/3.0d0+YP*EP
-     1          *(3.0d0-13.0d0/15.0d0*LD1U))/(1.0d0-EP)
-          FMAXS=(1.0d0-LD2U*(1.0d0-2.0d0/5.0d0*ES)/3.0d0+YS*ES
-     1          *(3.0d0-13.0d0/15.0d0*LD2U))/(1.0d0-ES)
-          DELTP=(15.0d0+LD1U)/(15.0d0-5.0d0*LD1U)*(1.0d0+YP)*EP
-          DELTS=(15.0d0+LD2U)/(15.0d0-5.0d0*LD2U)*(1.0d0+YS)*ES
-          SHORT=SINI2*CSVWT*CSVWT
-        else
-          FMAXP=1.0d0-LD1U/3.0d0
-          FMAXS=1.0d0-LD2U/3.0d0
-          DELTP=0.0d0
-          DELTS=0.0d0
-          SHORT=0.0d0
-        end if
-!-----------------------------------------------------------------------
-! And this is Gimenez's code for including nonlinear LD. He includes
-! the linear (UP), quadratic (UP, U2P) and square-root (UP, U3P) laws.
-! Modified by JKT on 2013/05/20 to include Claret's four-par LD law.
-!-----------------------------------------------------------------------
-
-      else if ( GIMENEZ==3 ) then
-
-!      FMAXP=1.0E0-UP*(1.0E0-2.0E0*EP/5.0E0)/3.0E0-
-!     1      U2P*(1.0E0-3.0E0*EP/5.0E0)/6.0E0-
-!     1      U3P*(1.0E0-4.0E0*EP/9.0E0)/5.0E0+2.0E0*YP*EP
-!     1      *(1.5E0-13.0E0*UP/30.0E0-U2P/5.0E0-23.0E0*U3P/90.0E0)
-!      FMAXP=FMAXP/(1.0E0-EP)
-!      FMINP=1.0E0-UP*(1.0E0+4.0E0*EP/5.0E0)/3.0E0-
-!     1      U2P*(1.0E0+6.0E0*EP/5.0E0)/6.0E0-
-!     1      U3P*(1.0E0+8.0E0*EP/9.0E0)/5.0E0+2.0E0*YP*EP
-!     1      *(1.0E0-7.0E0*UP/15.0E0-4.0E0*U2P/15.0E0-13.0E0*U3P/45.0E0)
-!      FMINS=1.0E0-US*(1.0E0+4.0E0*ES/5.0E0)/3.0E0-
-!     1      U2S*(1.0E0+6.0E0*ES/5.0E0)/6.0E0-
-!     1      U3S*(1.0E0+8.0E0*ES/9.0E0)/5.0E0+2.0E0*YS*ES
-!     1      *(1.0E0-7.0E0*US/15.0E0-4.0E0*U2S/15.0E0-13.0E0*U3S/45.0E0)
-!      FMAXS=1.0E0-US*(1.0E0-2.0E0*ES/5.0E0)/3.0E0-
-!     1      U2S*(1.0E0-3.0E0*ES/5.0E0)/6.0E0-
-!     1      U3S*(1.0E0-4.0E0*ES/9.0E0)/5.0E0+2.0E0*YS*ES
-!     1      *(1.5E0-13.0E0*US/30.0E0-U2S/5.0E0-23.0E0*U3S/90.0E0)
-!      FMAXS=FMAXS/(1.0E0-ES)
-!      DELTP=1.0E0-FMINP/FMAXP
-!      DELTS=1.0E0-FMINS/FMAXS
-!      SHORT=SINI2*CSVWT*CSVWT
-
-!   26 FMAXP=1.0E0-UP/3.0E0-U2P/6.0E0-U3P/5.0E0
-!      FMAXS=1.0E0-US/3.0E0-U2S/6.0E0-U3S/5.0E0
-!      DELTP=0.0E0
-!      DELTS=0.0E0
-!      SHORT=0.0
-
-        if ( Q >= 0.0d0 .and. (LDTYPE(1)==1 .or. LDTYPE(1)==5 .or.
-     &                         LDTYPE(2)==1 .or. LDTYPE(2)==5)  ) then
-          FMAXP=1.0d0-LD1U*(1.0d0-2.0d0*EP/5.0d0)/3.0d0-
-     &          LD1Q*(1.0d0-3.0d0*EP/5.0d0)/6.0d0-
-     &          LD1S*(1.0d0-4.0d0*EP/9.0d0)/5.0d0+2.0d0*YP*EP
-     &         *(1.5E0-13.0d0*LD1U/30.0d0-LD1Q/5.0d0-23.0d0*LD1S/90.0d0)
-          FMAXP=FMAXP/(1.0d0-EP)
-          FMINP=1.0d0-LD1U*(1.0d0+4.0d0*EP/5.0d0)/3.0d0-
-     &          LD1Q*(1.0d0+6.0d0*EP/5.0d0)/6.0d0-
-     &          LD1S*(1.0d0+8.0d0*EP/9.0d0)/5.0d0+2.0d0*YP*EP
-     &   *(1.0d0-7.0d0*LD1U/15.0d0-4.0d0*LD1Q/15.0d0-13.0d0*LD1S/45.0d0)
-          FMINS=1.0d0-LD2U*(1.0d0+4.0d0*ES/5.0d0)/3.0d0-
-     &          LD2Q*(1.0d0+6.0d0*ES/5.0d0)/6.0d0-
-     &          LD2S*(1.0d0+8.0d0*ES/9.0d0)/5.0d0+2.0d0*YS*ES
-     &   *(1.0d0-7.0d0*LD2U/15.0d0-4.0d0*LD2Q/15.0d0-13.0d0*LD2S/45.0d0)
-          FMAXS=1.0d0-LD2U*(1.0d0-2.0d0*ES/5.0d0)/3.0d0-
-     &          LD2Q*(1.0d0-3.0d0*ES/5.0d0)/6.0d0-
-     &          LD2S*(1.0d0-4.0d0*ES/9.0d0)/5.0d0+2.0d0*YS*ES
-     &         *(1.5E0-13.0d0*LD2U/30.0d0-LD2Q/5.0d0-23.0d0*LD2S/90.0d0)
-          FMAXS=FMAXS/(1.0d0-ES)
-          DELTP=1.0d0-FMINP/FMAXP
-          DELTS=1.0d0-FMINS/FMAXS
-          SHORT=SINI2*CSVWT*CSVWT
-        else
-          FMAXP = 1.0d0 - LD1U/3.0d0 - LD1Q/6.0d0 - LD1S/5.0d0
-     &                  - LD1L*2.0d0/9.0d0 - LD1C/10.0d0 - LD11/5.0d0
-     &                  - LD12/3.0d0 - LD13*3.0d0/7.0d0 - LD14/2.0d0
-          FMAXS = 1.0d0 - LD2U/3.0d0 - LD2Q/6.0d0 - LD2S/5.0d0
-     &                  - LD2L*2.0d0/9.0d0 - LD2C/10.0d0 - LD21/5.0d0
-     &                  - LD22/3.0d0 - LD23*3.0d0/7.0d0 - LD24/2.0d0
-          DELTP=0.0d0
-          DELTS=0.0d0
-          SHORT=0.0d0
-        end if
-!----------------------------------------------------------------------
+        FMAXS = 1.0d0 - LD2U/3.0d0 - LD2Q/6.0d0 - LD2C/10.0d0
+     &                - LD2S/5.0d0 + LD2L*2.0d0/9.0d0 - LD21/5.0d0
+     &                - LD22/3.0d0 - LD23*3.0d0/7.0d0 - LD24/2.0d0
+     &                - LD2POW1 + 2.0d0*LD2POW1/(LD2POW2+2.0d0)
+        DELTP = 0.0d0
+        DELTS = 0.0d0
+        SHORT = 0.0d0
       end if
+
+            ! Now for distorted stars.
+            ! EP and ES are the oblatenesses of the two stars from BIAX
+            ! YP and YS are gravity darkening coefficients for the stars
+
+      if ( Q >= 0.0d0 ) then
+
+            ! LD1UEQ and LD2UEQ are LD coeffs for the linear law that
+            ! give the same overall LD as for the nonlinear laws.
+
+        LD1UEQ = LD1U + LD1Q*0.5d0 + LD1C*0.3d0 + LD1S*0.6d0 -LD1L/1.5d0
+     &               + LD11*0.6d0 + LD12 + LD13*9.0d0/7.0d0 + LD14*1.5d0
+     &               + 3.0d0*LD1POW1*(1.0d0-2.0d0/(LD1POW2+2.0d0))
+        LD2UEQ = LD2U + LD2Q*0.5d0 + LD2C*0.3d0 + LD2S*0.6d0 -LD2L/1.5d0
+     &               + LD21*0.6d0 + LD22 + LD23*9.0d0/7.0d0 + LD24*1.5d0
+     &               + 3.0d0*LD2POW1*(1.0d0-2.0d0/(LD2POW2+2.0d0))
+
+            ! Get normalised fluxes accounting for LD, GD and oblateness
+
+        FMAXP = ((1.0d0-LD1UEQ)+0.66666666667d0*LD1UEQ*(1.0d0+0.2d0*EP))
+     &                                   *(1.0d0+3.0d0*YP*EP)/(1.0d0-EP)
+        FMAXS = ((1.0d0-LD2UEQ)+0.66666666667d0*LD2UEQ*(1.0d0+0.2d0*ES))
+     &                                   *(1.0d0+3.0d0*YS*ES)/(1.0d0-ES)
+
+            ! Get the total change in brightness due to oblateness (not
+            ! dependent on time) and the amount of this (is dep on time)
+
+        DELTP = (15.0d0+LD1UEQ) / (15.0d0-5.0d0*LD1UEQ) * (1.0d0+YP)*EP
+        DELTS = (15.0d0+LD1UEQ) / (15.0d0-5.0d0*LD1UEQ) * (1.0d0+YS)*ES
+        SHORT = SINI2 * CSVWT * CSVWT
+!         print'(7(f10.6))',LD1UEQ,LD2UEQ,FMAXP,FMAXS,DELTP,DELTS,SHORT
+      end if
+
 !----------------------------------------------------------------------
-! Complete original code before the above messing:
-! C
+! Complete original code replaced by the code above:
 ! C
 ! C        PHOTOMETRIC EFFECTS
-! C
 ! C
 ! C        TEST FOR SIMPLE CASE OF TWO SPHERICAL STARS
 !       IF (EP .EQ. 0.  .AND.  ES .EQ. 0.)   GO TO 26
@@ -5674,14 +6437,16 @@ C
 ! JKT mod (2006/08/10): the line these replaced was      UU = UP       !
 !----------------------------------------------------------------------!
       LDU = LD1U                                                       !
+      LDQ = LD1Q                                                       !
       LDL = LD1L                                                       !
       LDS = LD1S                                                       !
-      LDQ = LD1Q                                                       !
       LDC = LD1C                                                       !
       LD1 = LD11                                                       !
       LD2 = LD12                                                       !
       LD3 = LD13                                                       !
       LD4 = LD14                                                       !
+      LDPOW1 = LD1POW1                                                 ! modified 2022/03/22
+      LDPOW2 = LD1POW2                                                 ! modified 2022/03/22
 !----------------------------------------------------------------------!
       LE=LP
       DLE=DLP
@@ -5704,6 +6469,8 @@ C
       LD2 = LD22                                                       !
       LD3 = LD23                                                       !
       LD4 = LD24                                                       !
+      LDPOW1 = LD2POW1                                                 ! modified 2022/03/22
+      LDPOW2 = LD2POW2                                                 ! modified 2022/03/22
 !----------------------------------------------------------------------!
       LE=LS
       DLE=DLS
@@ -5721,7 +6488,7 @@ C
 ! The limiting value in the statement above used to be 1.0d-6 but      !
 ! Willie Torres and I independently identified this as a problem for   !
 ! very long-period EBs. We found that the eclipse attained a weird     !
-! boxy shape nea rthe centre, and if the parameters were pushed        !
+! boxy shape near the centre, and if the parameters were pushed        !
 ! further the eclipse vanished entirely. Fix: a new limiting value     !
 ! of 1.0d-8. The change was made on 2014/02/10 by JKT (JKTEBOP v33).   !
 !----------------------------------------------------------------------!
@@ -5812,7 +6579,13 @@ C
      &          - LDL*COSGAM*log(COSGAM) - LDS*(1.0d0-sqrt(COSGAM))    !
      &          - LDQ*(1.0d0-COSGAM)**2 - LDC*(1.0d0-COSGAM)**3        !
      &          - LD1*(1.0d0-COSGAM**0.5d0) - LD2*(1.0d0-COSGAM)       !
-     &          - LD3*(1.0d0-COSGAM**1.5d0) - LD4*(1.0d0-COSGAM**2))   !
+     &          - LD3*(1.0d0-COSGAM**1.5d0) - LD4*(1.0d0-COSGAM**2)    !
+     &          - LDPOW1*(1.0d0-COSGAM**LDPOW2))                       ! JKT modification 2022/03/22
+!       write(99,'(30(f15.8))')sums,COSGAM,darea,
+!      &   COSGAM**LDPOW2,LDPOW1*(1.0d0-COSGAM**LDPOW2),
+!      &    darea*(1.0-LDPOW1*(1.0d0-COSGAM**LDPOW2))
+!       write(98,'(20(f10.5))')cosgam,darea,ldu,ldl,lds,ldq,ldc,ld1,ld2,
+!      &     ld3,ld4,ldpow1,ldpow2
 !       print*,"a",darea,SUMS,1.0d0 - LDU*(1.0d0-COSGAM)
 !      &          - LDL*COSGAM*log(COSGAM) - LDS*(1.0d0-sqrt(COSGAM)
 !      &          - LDQ*(1.0d0-COSGAM)**2 - LDC*(1.0d0-COSGAM)**3)
@@ -5838,7 +6611,8 @@ C
       ALPHA = 1.0d0 - LDU/3.0d0 + LDL*2.0d0/9.0d0                      !
      &        - LDS/5.0d0 - LDQ/6.0d0 - LDC/10.0d0                     !
      &        - LD11/5.0d0 - LD12/3.0d0 - LD13*3.0/7.0d0 - LD14/2.0d0  !
-      ALPHA = SUMS/(ADISK*ALPHA)                                        !
+     &        - LDPOW1 + 2.0d0*LDPOW1/(LDPOW2+2.0d0)                   ! JKT modification 2022/03/22
+      ALPHA = SUMS/(ADISK*ALPHA)                                       !
 !----------------------------------------------------------------------!
       LECL = ALPHA*LE
       AREA = AREA/ADISK
@@ -5876,7 +6650,7 @@ C
             ! Taken from the website of Eric Agol on 2013/06/18
             ! http://www.astro.washington.edu/users/agol/
 
-      real*8 V(138)                  ! IN: EBOP model parameters
+      real*8 V(540)                  ! IN: EBOP model parameters
       real*8 HJD                    ! IN: time of measurement
       real*8 MAG                    ! OUT: predicted brightness in mags
       real*8 ECC,OMEGA,ECOSW,ESINW  ! LOCAL: orbital shape parameters
@@ -5967,13 +6741,6 @@ C
         z = 1.0d0 / R1
       end if
 
-!       print*,phases
-!       print'(A15,2(1x,f10.5))', "COSI,SINI      ", COSI,SINI
-!       print'(A15,2(1x,f10.5))', "PHIANOM,MEANANO", PHIANOM,MEANANOM
-!       print'(A15,2(1x,f10.5))', "ECCANOM,SEPR   ", ECCANOM,SEPR
-!       print'(A15,2(1x,f10.5))', "TANTD2,TRUEANOM", TANTD2,TRUEANOM
-!       print'(A15,2(1x,f10.5))', "PHANGLE,z      ", PHANGLE,z
-
             ! Here comes the original code from OCCULTSMALL:
 
       pi=acos(-1.d0)
@@ -6038,7 +6805,7 @@ C
       real*8 CHISQ                  ! OUT: chi-squared of the fit
 
       integer MMAX,j,k,l,m,mfit,ifail
-      parameter (MMAX = 138)
+      parameter (MMAX = 540)
       real*8 ochisq,atry(MMAX),beta(MMAX),da(MMAX)
       SAVE ochisq,atry,beta,da,mfit
 
@@ -6128,7 +6895,7 @@ C
      &                                                     OCHISQ,chisq)
       implicit none
       integer ma,nalp,NDATA,ia(ma),MMAX,mfit,i,j,k,l,m
-      parameter ( MMAX = 138 )
+      parameter ( MMAX = 540 )
       real*8 OCHISQ,CHISQ
       real*8 a(ma),alpha(nalp,nalp),beta(ma)
       real*8 wt,dyda(MMAX)
@@ -6196,7 +6963,7 @@ C
       implicit none
       integer m,mp,n,np,NMAX,ifail
       real*8 a(np,np),b(np,mp),big,dum,pivinv
-      parameter ( NMAX = 138 )
+      parameter ( NMAX = 540 )
       integer i,icol,irow,j,k,l,ll,indxc(NMAX),indxr(NMAX),ipiv(NMAX)
       ifail=0
       irow=0
