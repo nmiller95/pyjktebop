@@ -78,7 +78,7 @@ def secondary_phase_from_param_file(target_name):
 
 def plot_lightcurve(data_phase, data_mag, data_residual, fit_phase, fit_mag):
     """Plots data and model of the entire phase-folded light curve"""
-    figure, axes = plt.subplots(2, sharex='col', figsize=(8, 6),
+    figure, axes = plt.subplots(2, sharex='col', figsize=(10, 6),
                                 gridspec_kw={'height_ratios': [4, 2]})
     plt.subplots_adjust(hspace=0)
     axes[0].scatter(data_phase, data_mag, color='#92a6e5')
@@ -150,7 +150,7 @@ def plot_rv_results(*params, save=True):
      data_mag, data_residual, fit_phase, fit_mag) = params
 
     # PLOT 1 : RVs only
-    figure, axes = plt.subplots(2, sharex='col', figsize=(8, 6), gridspec_kw={'height_ratios': [4, 2]})
+    figure, axes = plt.subplots(2, sharex='col', figsize=(10, 6), gridspec_kw={'height_ratios': [4, 2]})
     plt.subplots_adjust(hspace=0)
     axes[0].scatter(o_rv_phase_1, o_rv1, color='#8B0000', s=60)
     axes[0].scatter(o_rv_phase_2, o_rv2, color='C1', s=60)
@@ -167,15 +167,15 @@ def plot_rv_results(*params, save=True):
         figure.savefig(f'{target}-rvs.png')
 
     # PLOT 2 : EVERYTHING
-    figure, axes = plt.subplots(2, sharex='col', figsize=(8, 6), gridspec_kw={'height_ratios': [3, 3]})
+    figure, axes = plt.subplots(2, sharex='col', figsize=(10, 6), gridspec_kw={'height_ratios': [3, 3]})
     plt.subplots_adjust(hspace=0)
     # Light curve panel
     axes[0].scatter(data_phase, data_mag, color='#b3b3b3', s=2)
     axes[0].plot(fit_phase, fit_mag, color='#0c0f19')
     axes[0].set(ylabel='Magnitude', ylim=(max(data_mag) + 0.05, min(data_mag) - 0.05),)
     # RV panel
-    axes[1].scatter(o_rv_phase_1, o_rv1, color='#8B0000', s=60)
-    axes[1].scatter(o_rv_phase_2, o_rv2, color='C1', s=60)
+    axes[1].scatter(o_rv_phase_1, o_rv1, color='#8B0000', s=60, zorder=0)
+    axes[1].scatter(o_rv_phase_2, o_rv2, color='C1', s=60, zorder=0)
     axes[1].plot(c_rv_phase, c_rv1, color='#8B0000')
     axes[1].plot(c_rv_phase, c_rv2, color='C1')
     axes[1].set(ylabel='RV [km/s]', ylim=(max(o_rv2) + 5, min(o_rv1) - 5), xlabel='Phase', xlim=(-0.5, 0.5))
@@ -187,33 +187,39 @@ def plot_rv_results(*params, save=True):
 
 
 if __name__ == "__main__":
+    # PyJKTEBOP currently supports TASK3 of JKTEBOP, with/without RVs
+    # Future improvements: custom phase range, support TASK8 (Monte Carlo) and TASK9 (Residual Permutation)
 
-    target = 'llaqr'
-    rv_fit = True
+    target = 'llaqr'  # Name of target / JKTEBOP files
+    rerun = True  # True = run JKTEBOP. False = plot existing results
+    rv_fit = True  # True = using RVs. False = standard LC only. Expects extensions -rv1, -rv2, -phot on .dat files
+    mag_shift = -5.7265  # Constant to shift magnitude by in plots
 
-    # Clean out old result files that prevent JKTEBOP from running
-    clean_old_results(target)
-    if rv_fit:
-        clean_old_results(target + '-phot')
-        clean_old_results(target + '-rv1')
-        clean_old_results(target + '-rv2')
+    # Procedure to set up and run JKTEBOP
+    if rerun:
+        # Clean out old result files that prevent JKTEBOP from running
+        clean_old_results(target)
+        if rv_fit:
+            clean_old_results(target + '-phot')
+            clean_old_results(target + '-rv1')
+            clean_old_results(target + '-rv2')
 
-    # Compile and run JKTEBOP
-    compile_jktebop()
-    run_jktebop(target)
+        # Compile and run JKTEBOP
+        compile_jktebop()
+        run_jktebop(target)
 
-    # Extract information from output files
-    o_phase, o_mag, o_c = data_from_output_file(target)
+    # Extract light curve data and fit information from output files
+    o_phase, o_mag, o_c = data_from_output_file(target, v_shift=mag_shift)
     c_phase, c_mag = model_from_fit_file(target)
+    c_mag = np.array(c_mag) - mag_shift
     phase_2 = secondary_phase_from_param_file(target)
 
+    # Make light curve plots
+    plot_lightcurve(o_phase, o_mag, o_c, c_phase, c_mag)
+    plot_eclipses(o_phase, o_mag, o_c, c_phase, c_mag, phase_2)
+
+    # Extract and plot RVs
     if rv_fit:
         rv_params = get_rv_results(target)
         p = *rv_params, o_phase, o_mag, o_c, c_phase, c_mag
         plot_rv_results(*p)
-
-    # Make plots
-    plot_lightcurve(o_phase, o_mag, o_c, c_phase, c_mag)
-    plot_eclipses(o_phase, o_mag, o_c, c_phase, c_mag, phase_2)
-
-
