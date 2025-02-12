@@ -2,6 +2,7 @@ import os
 from matplotlib import pyplot as plt
 import numpy as np
 from astropy.table import Table
+import corner
 
 plt.style.use('jktebop.mplstyle')
 
@@ -45,7 +46,7 @@ def data_from_output_file(target_name, v_shift=0):
     output_file = Table.read(f'{target_name}.out', format='ascii')  # Phase-folded light curve
     data_phase = wrap_phase(np.array(output_file['PHASE']))
     data_mag = np.array(output_file['MAGNITUDE'] - v_shift)
-    data_residual = np.array(output_file['(O-C)'] - v_shift)
+    data_residual = np.array(output_file['(O-C)'])
     return data_phase, data_mag, data_residual
 
 
@@ -186,13 +187,34 @@ def plot_rv_results(*params, save=True):
         figure.savefig(f'{target}-lc-rvs-combo.png')
 
 
+def get_plot_mc_results(target_name, make_corner=True):
+    """Retrieve TASK8 Monte Carlo results from .fit file, print and plot results"""
+    results = Table.read(f'{target_name}.fit', format='ascii')
+    print(f"TASK8 Monte Carlo results for {target_name}. Number of MC iterations: {len(results)}")
+    print("Parameter       Mean         Stdev")
+    print("---------       -------      -------")
+    for col in list(results.itercols())[2:]:
+        mean = np.mean(np.array(col))
+        stdev = np.std(np.array(col))
+        print(f"{col.name.ljust(10)} {mean:>12.5f} {stdev:>12.5f}")
+
+    # Prepare table object for corner plot
+    if make_corner:
+        results_data = results[results.colnames[2:]]
+        results_data = np.array([results_data[col] for col in results_data.colnames]).T
+        figure = corner.corner(results_data, labels=results.colnames[2:])
+        figure.show()
+
+
 if __name__ == "__main__":
-    # PyJKTEBOP currently supports TASK3 of JKTEBOP, with/without RVs
-    # Future improvements: custom phase range, support TASK8 (Monte Carlo) and TASK9 (Residual Permutation)
+    # PyJKTEBOP currently supports TASK3 and TASK8 of JKTEBOP, with/without RVs
+    # Future improvements: custom phase range, support TASK9 (Residual Permutation)
 
     target = 'llaqr'  # Name of target / JKTEBOP files
-    rerun = True  # True = run JKTEBOP. False = plot existing results
+    task = 8  # 3, 8, or 9
+    rerun = False  # True = run JKTEBOP. False = plot existing results
     rv_fit = True  # True = using RVs. False = standard LC only. Expects extensions -rv1, -rv2, -phot on .dat files
+    make_corner_plot = False  # For TASK8. Will probably break your RAM if you have too many free parameters
     mag_shift = -5.7265  # Constant to shift magnitude by in plots
 
     # Procedure to set up and run JKTEBOP
@@ -208,18 +230,23 @@ if __name__ == "__main__":
         compile_jktebop()
         run_jktebop(target)
 
-    # Extract light curve data and fit information from output files
-    o_phase, o_mag, o_c = data_from_output_file(target, v_shift=mag_shift)
-    c_phase, c_mag = model_from_fit_file(target)
-    c_mag = np.array(c_mag) - mag_shift
-    phase_2 = secondary_phase_from_param_file(target)
+    if task == 3:
+        # Extract light curve data and fit information from output files
+        o_phase, o_mag, o_c = data_from_output_file(target, v_shift=mag_shift)
+        c_phase, c_mag = model_from_fit_file(target)
+        c_mag = np.array(c_mag) - mag_shift
+        phase_2 = secondary_phase_from_param_file(target)
 
-    # Make light curve plots
-    plot_lightcurve(o_phase, o_mag, o_c, c_phase, c_mag)
-    plot_eclipses(o_phase, o_mag, o_c, c_phase, c_mag, phase_2)
+        # Make light curve plots
+        plot_lightcurve(o_phase, o_mag, o_c, c_phase, c_mag)
+        plot_eclipses(o_phase, o_mag, o_c, c_phase, c_mag, phase_2)
 
-    # Extract and plot RVs
-    if rv_fit:
-        rv_params = get_rv_results(target)
-        p = *rv_params, o_phase, o_mag, o_c, c_phase, c_mag
-        plot_rv_results(*p)
+        # Extract and plot RVs
+        if rv_fit:
+            rv_params = get_rv_results(target)
+            p = *rv_params, o_phase, o_mag, o_c, c_phase, c_mag
+            plot_rv_results(*p)
+
+    elif task == 8:
+        # Prints mean and stdev of MC results. Can make a corner plot, but may break RAM if too many params
+        get_plot_mc_results(target, make_corner=make_corner_plot)
