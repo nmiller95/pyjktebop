@@ -1,42 +1,61 @@
 # To check more avaialble options see:
 # https://matplotlib.org/tutorials/introductory/customizing.html
 
+# GENERAL OPTIONS
+font.size: 15
+font.family: serif
+font.serif: Times
+mathtext.fontset: dejavuserif
 text.color : (0.2,0.2,0.2)
 
 # AXES
-axes.titlesize : 16
-axes.labelsize : 14
-axes.edgecolor : (0.1,0.1,0.1) #Normalized RGB colours (from 0 to 1 instead of 0 to 255)
+axes.edgecolor : (0.1,0.1,0.1)  # Normalized RGB colours (from 0 to 1 instead of 0 to 255)
 axes.labelcolor : (0.1,0.1,0.1)
-axes.linewidth : 1
+axes.linewidth : 1.2
 axes.spines.top : True
 axes.spines.right : True
 axes.spines.bottom : True
 axes.spines.left : True
 
 # GRID
-axes.grid : True
+axes.grid : False
 grid.alpha : 0.7
 grid.linestyle : --
 grid.linewidth : 0.6
 
 # LINES
-axes.prop_cycle : cycler('color', [ '003f5c', '444e86', '955196', 'dd5182', 'ff6e54', 'ffa600']) #hex colours
-lines.linewidth : 1.5
+axes.prop_cycle : cycler('color', [ '313E89', 'B2B7D3', '656EA7'])  # hex colours
+# Was previously #0c0f19 for plot() and #92a6e5 for scatter
+lines.linewidth : 2.2
 lines.markeredgewidth : 0.0
 
 # SCATTER PLOT
-scatter.marker : .
+scatter.marker : o
+scatter.markersize: 20  # TODO Doesn't work
 
-# TICKS
+# X TICKS
+xtick.top: True
 xtick.labelsize : 13
 xtick.color : (0.2,0.2,0.2)
 xtick.direction : in
+xtick.major.size : 6
+xtick.major.width: 1.5
+xtick.minor.size : 3
+xtick.minor.width : 1.2
+
+# Y TICKS
+ytick.right: True
 ytick.labelsize : 13
 ytick.color : (0.2,0.2,0.2)
 ytick.direction : in
+ytick.major.size : 6
+ytick.major.width: 1.5
+ytick.minor.size : 3
+ytick.minor.width : 1.2
 
-# FIGURE OUTPUT 
-figure.figsize  : 7, 5
+# LEGEND
+legend.fontsize: medium
+
+# FIGURE OUTPUT
 figure.dpi : 100
 savefig.dpi : 200
