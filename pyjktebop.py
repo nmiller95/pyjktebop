@@ -10,7 +10,7 @@ plt.style.use('jktebop.mplstyle')
 
 def compile_jktebop():
     """Use bash command to compile jktebop.f"""
-    os.system('gfortran -o jktebop jktebop.f')
+    os.system('gfortran -o jktebop jktebop.f -std=legacy')
 
 
 def clean_old_results(target_name: str):
@@ -233,7 +233,7 @@ def get_rv_results(target_name):
             fit_phase_sort, fit_rv1_sort, fit_rv2_sort)
 
 
-def plot_rv_results(*params, save=True):
+def plot_rv_results(*params, save=True, y_axis_buffer=0.005):
     """Plots RV curve and combined RV-LC plot"""
     (o_rv_phase_1, o_rv_phase_2, o_rv1, o_rv2, o_c_rv_1, o_c_rv_2, c_rv_phase, c_rv1, c_rv2, data_phase,
      data_mag, data_residual, fit_phase, fit_mag) = params
@@ -245,7 +245,7 @@ def plot_rv_results(*params, save=True):
     axes[0].scatter(o_rv_phase_2, o_rv2, color='C1', s=60)
     axes[0].plot(c_rv_phase, c_rv1, color='#8B0000')
     axes[0].plot(c_rv_phase, c_rv2, color='C1')
-    axes[0].set(ylabel='RV [km/s]', ylim=(min(o_rv1) - 5, max(o_rv2) + 5))
+    axes[0].set(ylabel='RV [km/s]', ylim=(min(min(c_rv1), min(c_rv2)) - 5, max(max(c_rv1), max(c_rv2)) + 5))
     axes[1].scatter(o_rv_phase_1, o_c_rv_1, color='#8B0000', s=60)
     axes[1].scatter(o_rv_phase_2, o_c_rv_2, color='C1', s=60)
     axes[1].set(xlabel='Phase', ylabel='Residual', xlim=(-0.5, 0.5))
@@ -261,13 +261,14 @@ def plot_rv_results(*params, save=True):
     # Light curve panel
     axes[0].scatter(data_phase, data_mag, color='#b3b3b3', s=2)
     axes[0].plot(fit_phase, fit_mag, color='#0c0f19')
-    axes[0].set(ylabel='Magnitude', ylim=(max(data_mag) + 0.05, min(data_mag) - 0.05),)
+    axes[0].set(ylabel='Magnitude', ylim=(max(data_mag) + y_axis_buffer, min(data_mag) - y_axis_buffer),)
     # RV panel
     axes[1].scatter(o_rv_phase_1, o_rv1, color='#8B0000', s=60, zorder=0)
     axes[1].scatter(o_rv_phase_2, o_rv2, color='C1', s=60, zorder=0)
     axes[1].plot(c_rv_phase, c_rv1, color='#8B0000')
     axes[1].plot(c_rv_phase, c_rv2, color='C1')
-    axes[1].set(ylabel='RV [km/s]', ylim=(min(o_rv1) - 5, max(o_rv2) + 5), xlabel='Phase', xlim=(-0.5, 0.5))
+    axes[1].set(ylabel='RV [km/s]', ylim=(min(min(c_rv1), min(c_rv2)) - 5, max(max(c_rv1), max(c_rv2)) + 5),
+                xlabel='Phase', xlim=(-0.6, 0.6))
     figure.align_labels()
     figure.tight_layout()
     figure.show()
@@ -300,14 +301,12 @@ if __name__ == "__main__":
     # - support TASK9 (Residual Permutation)
     # - automatically take TASK8 best results, put into TASK2/TASK3 file to make best model and plot
     # - class-based structure with command-line interface
-    # - rebase master -> main
-    # - update RV plotting to publication standard
 
-    target = ''  # Name of target / JKTEBOP files
+    target = 'hd161701'  # Name of target / JKTEBOP files
     # task2_file = 'llaqr_best'
     task = 3  # 3, 8, or 9
     rerun = True  # True = run JKTEBOP. False = plot existing results
-    rv_fit = False  # True = using RVs. False = standard LC only. Expects extensions -rv1, -rv2, -phot on .dat files
+    rv_fit = True  # True = using RVs. False = standard LC only. Expects extensions -rv1, -rv2, -phot on .dat files
     make_corner_plot = False  # For TASK8. Will probably break your RAM if you have too many free parameters
     mag_shift = 0  # -5.7265  # Constant to shift magnitude by in plots
 
