@@ -24,7 +24,7 @@ grid.linestyle : --
 grid.linewidth : 0.6
 
 # LINES
-axes.prop_cycle : cycler('color', [ '313E89', 'B2B7D3', '656EA7'])  # hex colours
+axes.prop_cycle : cycler('color', [ '313E89', 'B2B7D3', '656EA7', '8B0000', 'B3B3B3', '0C0F19'])  # hex colours
 # Was previously #0c0f19 for plot() and #92a6e5 for scatter
 lines.linewidth : 2.2
 lines.markeredgewidth : 0.0
