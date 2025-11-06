@@ -4,6 +4,7 @@ from astropy.table import Table
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import corner
+import argparse
 
 plt.style.use('jktebop.mplstyle')
 
@@ -79,6 +80,11 @@ class JKTEBOP:
         if not self.custom_compile_command:
             # -std=legacy suppresses warnings about arithmetic IF statements
             os.system(f'{self.compiler} -o jktebop jktebop.f -std=legacy')
+            # Can also try one of the following on UNIX:
+            # g77 - o jktebop jktebop.f
+            # g95 - o jktebop jktebop.f
+            # gfortran - o jktebop jktebop.f
+            # ifort - o jktebop jktebop.f
         else:
             os.system(self.custom_compile_command)
 
@@ -97,7 +103,18 @@ class JKTEBOP:
 
 class TASK3:
     def __init__(self, target_name, rv=False, v_shift=0):
-        """ Read the JKTEBOP results from TASK3 output files """
+        """
+        Read the JKTEBOP results from TASK3 output files
+
+        Parameters
+        ----------
+        target_name : str
+            Name of target, used in filenames (see filename convention)
+        rv : bool, optional
+            Whether the JKTEBOP fit includes a simultaneous RV fit
+        v_shift : float, optional
+            Amount (in magnitudes) to offset the light curve fit and data by
+        """
         self.target_name = target_name
         self.v_shift = v_shift
         # Load light curve observations and fit from files
@@ -184,7 +201,7 @@ class TASK3:
         figure.align_labels()
         figure.tight_layout()
         if save:
-            plt.savefig(f'{target}-lightcurve.png')
+            plt.savefig(f'{self.target_name}-lightcurve.png')
         figure.show()
 
     def plot_eclipses(self, save=True, ecl_width=0.016, n_bin=1000, y_buffer=0.005, marker_size=20):
@@ -238,7 +255,7 @@ class TASK3:
         figure.tight_layout()
         figure.show()
         if save:
-            figure.savefig(f'{target}-eclipses.png')
+            figure.savefig(f'{self.target_name}-eclipses.png')
 
     def plot_rv_curve(self, save=True, marker_size=60):
         """
@@ -269,7 +286,7 @@ class TASK3:
         figure.tight_layout()
         figure.show()
         if save:
-            figure.savefig(f'{target}-rvs.png')
+            figure.savefig(f'{self.target_name}-rvs.png')
 
     def plot_rv_lc(self, save=True, y_buffer=0.003, rv_marker_size=60):
         """
@@ -305,27 +322,34 @@ class TASK3:
         figure.tight_layout()
         figure.show()
         if save:
-            figure.savefig(f'{target}-lc-rvs-combo.png')
+            figure.savefig(f'{self.target_name}-lc-rvs-combo.png')
 
 
 class TASK8:
-    def __init__(self, target_name):
-        self.target_name = target_name
-        self.samples = self.load_results()
+    def __init__(self, target_name, rv=False, ld_a=None, ld_b=None):
+        """
+        Read the JKTEBOP results from TASK8 output files
 
-    def load_results(self):
+        Parameters
+        ----------
+        target_name : str
+            Name of target, used in filenames (see filename convention)
+        rv : bool, optional
+            Whether the JKTEBOP fit includes a simultaneous RV fit
+        ld_a : str, optional
+            Limb darkening law for the primary used in the light curve fit (not needed for 'lin', 'quad' or 'log')
+        ld_b : str, optional
+            Limb darkening law for the secondary used in the light curve fit (not needed for 'lin', 'quad' or 'log')
+        """
+        self.target_name = target_name
+        self.samples = self.load_samples()
+        self.ld_a, self.ld_b = ld_a, ld_b
+        self.rv = rv
+        self.best_par = self.extract_best_fit_params()
+
+    def load_samples(self):
         """ Retrieve TASK8 Monte Carlo results from .fit file """
         return Table.read(f'{self.target_name}.fit', format='ascii')
-
-    def print_results(self):
-        """ Print mean and standard deviation of the MC samples from TASK8 """
-        print(f"TASK8 Monte Carlo results for {self.target_name}. Number of MC iterations: {len(self.samples)}")
-        print("Parameter       Mean         Stdev")
-        print("---------       -------      -------")
-        for col in list(self.samples.itercols())[2:]:
-            mean = np.mean(np.array(col))
-            stdev = np.std(np.array(col))
-            print(f"{col.name.ljust(10)} {mean:>12.5f} {stdev:>12.5f}")
 
     def plot_corner(self, n_params=13, save=False):
         """
@@ -338,44 +362,166 @@ class TASK8:
         save: bool, optional
             Whether to save the plot to file as <target>-corner.png
         """
+        label_lookup = {
+            'rA+rB': r'r$_A$+r$_B$', 'inc': 'i', 'ecosw': r'e$\cos{\omega}$', 'esinw': r'e$\sin{\omega}$',
+            'T_0': r'T$_0$', 'K_A': r'K$_A$', 'K_B': r'K$_B$', 'VsysA': r'$\gamma_A$', 'VsysB': r'$\gamma_B$',
+            'r_A': r'r$_A$', 'r_B': r'r$_B$', 'LB/LA': r'L$_B$/L$_A$', 'omega': r'$\omega$', 'b_pri': r'b$_A$',
+            'b_sec': r'b$_B$', 'Rchi2': r'$\chi^2$', 'M_A': r'M$_A$', 'M_B': r'M$_B$', 'R_A': r'R$_A$', 'R_B': r'R$_B$',
+            'loggA': r'$\log{g_A}$', 'loggB': r'$\log{g_B}$', 'rho_A': r'$\rho_A$', 'rho_B': r'$\rho_B$',
+            'LD_A1': r'u$_A$', 'LD_B1': r'u$_B$', 'LD_A2': r'v$_A$', 'LD_B2': r'v$_B$'
+        }
         if n_params >= 15:
             print("Caution: Using a large number of parameters may overload your RAM!")
         samples = self.samples[self.samples.colnames[2:]]
-        samples = np.array([samples[col] for col in samples.colnames]).T
-        figure = corner.corner(samples[0:n_params+1], labels=self.samples.colnames[2:])
+        samples = np.array([samples[col] for col in samples.colnames])[0:n_params].T
+        labels = [label_lookup.get(l, l) for l in self.samples.colnames[2:]]
+        figure = corner.corner(samples, labels=labels)
         figure.show()
         if save:
-            figure.savefig(f'{target}-corner.png')
+            figure.savefig(f'{self.target_name}-corner.png')
 
-    def make_task2_with_best_fit(self):
-        """ Generate a TASK2 or TASK3 file for best parameters, so the user (or a later function) can rerun and plot """
-        pass
+    def extract_best_fit_params(self) -> dict:
+        """
+        Retrieve best parameters from TASK8 .par file
 
+        Returns
+        -------
+        Best fit parameters as a dictionary, in the correct format to make a TASK2 or TASK3 file
+        """
+        with open(f'{self.target_name}.par') as f:
+            lines = f.readlines()
+            names = ['sbr', 'rsum', 'k', 'lda1', 'ldb1', 'incl', 'ecosw', 'esinw', 'grava', 'gravb', 'refla', 'reflb',
+                     'massr', 'l3', 'phase', 'sfact', 'intring', 'p', 't0', 'lda2', 'ldb2']
+            if self.rv:
+                names += ['KA', 'KB', 'gama', 'gamb']
+            par: dict[str, float | str] = {
+                name: float(lines[68 + i][26:45]) for i, name in enumerate(names)
+            }
+            # Limb darkening law to work in TASK2 file - User-specified value or reformat law as printed in .par file
+            if self.ld_a and self.ld_b:
+                par['ldlawa'] = self.ld_a
+                par['ldlawb'] = self.ld_b
+            else:
+                par['ldlawa'] = lines[69 + len(names)][42:].strip()
+                par['ldlawb'] = lines[70 + len(names)][42:].strip()
+                for ld in ['ldlawa', 'ldlawb']:
+                    reformatted = False
+                    for ld_type in ['lin', 'quad', 'log']:
+                        if ld_type in par[ld]:
+                            par[ld] = ld_type
+                            reformatted = True
+                    if not reformatted:
+                        print("Limb darkening law is not 'lin', 'quad' or 'log'. Please set ld_a, ld_b")
+        return par
+
+    def make_task3_input(self):
+        """ Generate a TASK3 file fixing at best parameters, so the user can rerun and plot """
+        par = self.best_par
+        task3 = [
+            f"3 {par['intring']}                  Task to do (from 2 to 9)   Integ. ring size (deg)",
+            f"{par['rsum']:.4f} {par['k']:.4f}          Sum of fractional radii    Ratio of the radii",
+            f"{par['incl']:.4f} {par['massr']:.4f}         Orbital inclination (deg)  Mass ratio of system",
+            f"{par['ecosw']:.6f} {par['esinw']:.6f}    ecosw or eccentricity      esinw or periastron long",
+            f"{par['grava']:.4f} {par['gravb']:.4f}          Gravity darkening (star A) Grav darkening (star B)",
+            f"{par['sbr']:.6f} {par['l3']:.4f}        Surface brightness ratio   Amount of third light",
+            f"{par['ldlawa']} {par['ldlawb']}              LD law type for star A     LD law type for star B",
+            f"{par['lda1']:.4f} {par['ldb1']:.4f}          LD star A (linear coeff)   LD star B (linear coeff)",
+            f"{par['lda2']:.4f} {par['ldb2']:.4f}          LD star A (nonlin coeff)   LD star B (nonlin coeff)",
+            f"{par['refla']:.6f} {par['reflb']:.6f}      Reflection effect star A   Reflection effect star B",
+            f"{par['phase']:.4f} {par['sfact']:.8f}     Phase of primary eclipse   Light scale factor (mag)",
+            f"{par['p']:.5f}               Orbital period of eclipsing binary system (days)",
+            f"{par['t0']:.5f}          Reference time of primary minimum (HJD)",
+            " 0  0                  Adjust RADII SUM  or  RADII RATIO      (0, 1, 2, 3)",
+            " 0  0                  Adjust INCLINATION  or  MASSRATIO      (0, 1, 2, 3)",
+            " 0  0                  Adjust ECCENTRICITY  or  OMEGA         (0, 1, 2, 3)",
+            " 0  0                  Adjust GRAVDARK1  or  GRAVDARK2        (0, 1, 2, 3)",
+            " 0  0                  Adjust SURFACEBRIGHT2  or  THIRDLIGHT  (0, 1, 2, 3)",
+            " 0  0                  Adjust LD-lin starA  or  LD-lin starB  (0, 1, 2, 3)",
+            " 0  0                  Adjust LD-nonlinA  or  LD-nonlinB      (0, 1, 2, 3)",
+            " 0  0                  Adjust REFLECTION COEFFS A and B       (-1,0,1,2,3)",
+            " 0  0                  Adjust PHASESHIFT  or  SCALE FACTOR    (0, 1, 2, 3)",
+            " 0  0                  Adjust PERIOD  or  TZERO (min light)   (0, 1, 2, 3)",
+            f"{self.target_name}-phot.dat",
+            f"{self.target_name}-task3.par",
+            f"{self.target_name}-task3.out",
+            f"{self.target_name}-task3.fit\n"
+        ]
+        if self.rv:
+            task3 += [
+                f"rv1 {self.target_name}-rv1.dat {self.target_name}-task3-rv1.out {par['KA']:.4f} {par['gama']:.4f} 0 0",
+                f"rv2 {self.target_name}-rv2.dat {self.target_name}-task3-rv2.out {par['KB']:.4f} {par['gamb']:.4f} 0 0",
+            ]
+        with open(f'{self.target_name}-task3.in', 'w') as f:
+            f.write("\n".join(task3))
+
+    def model_from_best_fit(self, recompile=False, compiler='gfortran', custom_compile_command=None):
+        """
+        Prepare TASK3 input file with all parameters fixed, run JKTEBOP to make best fit model output files.
+        Returns a TASK3 object which can be used to generate the desired plots.
+
+        Parameters
+        ----------
+        recompile: bool
+            Whether to recompile JKTEBOP before running TASK3.
+        compiler : str, optional
+            Name of compiler to use (e.g. 'gfortran')
+        custom_compile_command : str, optional
+            Own command to use to compile JKTEBOP if e.g. gfortran is not working.
+
+        Returns
+        -------
+        TASK3 object
+        """
+        self.make_task3_input()
+        # Run JKTEBOP on this new TASK3 file
+        JKTEBOP(f"{self.target_name}-task3", recompile, compiler, custom_compile_command)
+        return TASK3(f"{self.target_name}-task3")
+
+
+def jktebop_parser():
+    parser = argparse.ArgumentParser(prog='PyJKTEBOP', description='Python wrapper for common JKTEBOP routines',
+                                     usage='python pyjktebop.py [target name] [3 or 8] -pse -v')
+    parser.add_argument('targetname')
+    parser.add_argument('task', type=int)
+    parser.add_argument('-r', '--run', action='store_true')
+    parser.add_argument('-p', '--plot', action='store_true')
+    parser.add_argument('-s', '--save', action='store_true')
+    parser.add_argument('-v', '--radial_velocities', action='store_true')
+    parser.add_argument('-e', '--recompile', action='store_true')
+    parser.add_argument('-c', '--compiler', default='gfortran')
+    parser.add_argument('-n', '--n_corner_params', default=8, type=int)
+    parser.add_argument('-m', '--custom_compile_command')
+    args = parser.parse_args()
+
+    if args.run:
+        JKTEBOP(args.targetname, recompile=args.recompile, compiler=args.compiler,
+                custom_compile_command=args.custom_compile_command)
+
+    if args.task == 3:
+        t = TASK3(args.targetname, rv=args.radial_velocities)
+        if args.plot:
+            t.plot_lightcurve(save=args.save)
+            t.plot_eclipses(save=args.save)
+            if args.radial_velocities:
+                t.plot_rv_curve(save=args.save)
+                t.plot_rv_lc(save=args.save)
+
+    if args.task == 8:
+        t = TASK8(args.targetname, rv=args.radial_velocities)
+        if args.plot:
+            t.plot_corner(n_params=args.n_corner_params, save=args.save)
+            # Assume that "I want to plot my TASK8" extends to the light curve/RV model
+            t3 = t.model_from_best_fit(recompile=args.recompile, compiler=args.compiler,
+                custom_compile_command=args.custom_compile_command)
+            t3.plot_lightcurve(save=args.save)
+            t3.plot_eclipses(save=args.save)
+            if args.radial_velocities:
+                t3.plot_rv_curve(save=args.save)
+                t3.plot_rv_lc(save=args.save)
 
 if __name__ == "__main__":
     # PyJKTEBOP currently supports TASK3 and TASK8 of JKTEBOP, with/without RVs
     # Future improvements:
     # - support TASK9 (Residual Permutation)
-    # - automatically take TASK8 best results, put into TASK2/TASK3 file to make best model and plot
-    # - class-based structure with command-line interface
-
-    target = 'hd161701'  # Name of target / JKTEBOP files
-    task = 3  # 3, 8, or 9
-    rerun = False  # True = run JKTEBOP. False = plot existing results
-    rv_fit = True  # True = using RVs. False = standard LC only. Expects extensions -rv1, -rv2, -phot on .dat files
-
-    if rerun:
-        j = JKTEBOP(target)
-
-    if task == 3:
-        t = TASK3(target, rv=True)
-        t.plot_lightcurve()
-        t.plot_eclipses()
-        t.plot_rv_curve()
-        t.plot_rv_lc()
-
-    if task == 8:
-        t = TASK8(target)
-        t.print_results()
-        t.plot_corner(n_params=5)
-        t.make_task2_with_best_fit()  # TODO
+    # - readthedocs, especially re: assumed filename conventions
+    jktebop_parser()
