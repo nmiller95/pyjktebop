@@ -2,7 +2,6 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('../..'))  # go up to project root
-os.environ["SPHINX_BUILD"] = "1"
 
 # -- Project information
 
@@ -24,6 +23,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx_prompt'
 ]
+autosummary_generate = True
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
