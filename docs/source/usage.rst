@@ -7,8 +7,10 @@ Prepare JKTEBOP input files
 You can generate a blank input file with the following commands:
 
 .. prompt:: bash
+
     gfortran -o jktebop.f jktebop
     ./jktebop newfile
+
 PyJKTEBOP will assume that your file naming structure is the following:
 
 * ``<target>.in`` - configuration file
@@ -38,12 +40,14 @@ Run TASK3 light curve fit; plot and save
 .. prompt:: bash
 
     python pyjktebop.py target 3 -rps
+
 Plot and save an existing TASK3 light curve and RV fit
 ------------------------------------------------------
 
 .. prompt:: bash
 
     python pyjktebop.py target 3 -vps
+
 Plot and save existing TASK8 light curve results
 ------------------------------------------------
 Here, we also specify the number of parameters to show in the corner plot (default = 8).
@@ -52,6 +56,7 @@ These are counted from the leftmost column of the ``<target>.fit`` output file.
 .. prompt:: bash
 
     python pyjktebop.py target 8 -ps --n_corner_params 10
+
 Scripting
 =========
 For more flexibility, you can import PyJKTEBOP as a package (but make sure to place ``jktebop.f`` in the same directory).
@@ -75,4 +80,5 @@ Future versions may allow more flexibility in this.
     t8.plot_corner(n_params=5, save=True)
     t3 = t8.model_from_best_fit(recompile=False)
     t3.plot_eclipses()
+
 See the full documentation for information on each class/function available.

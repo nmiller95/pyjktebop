@@ -6,7 +6,8 @@ from matplotlib.ticker import MultipleLocator
 import corner
 import argparse
 
-plt.style.use('jktebop.mplstyle')
+if not os.environ.get("SPHINX_BUILD"):
+    plt.style.use('jktebop.mplstyle')
 
 
 def wrap_phase(phase_array):
