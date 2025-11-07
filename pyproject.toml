@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyjktebop"
+description = "Simple python interface for light curve fitting with JKTEBOP"
+authors = [{name = "Nikki Miller", email = "nikkimillerastro@gmail.com"}]
+
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+   "numpy>=2.0",
+   "astropy>=6.1",
+   "matplotlib>=3.9",
+]
