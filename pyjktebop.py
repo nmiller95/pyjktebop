@@ -7,6 +7,12 @@ import corner
 import argparse
 
 
+if not os.environ.get("READTHEDOCS"):
+    try:
+        plt.style.use('jktebop.mplstyle')
+    except OSError:
+        pass
+
 def wrap_phase(phase_array):
     """ Convert phase array from (0,1) to (-0.5,0.5) """
     for i, ph in enumerate(phase_array):
@@ -113,7 +119,6 @@ class TASK3:
         v_shift : float, optional
             Amount (in magnitudes) to offset the light curve fit and data by
         """
-        plt.style.use('jktebop.mplstyle')
         self.target_name = target_name
         self.v_shift = v_shift
         # Load light curve observations and fit from files
@@ -340,7 +345,6 @@ class TASK8:
         ld_b : str, optional
             Limb darkening law for the secondary used in the light curve fit (not needed for 'lin', 'quad' or 'log')
         """
-        plt.style.use('jktebop.mplstyle')
         self.target_name = target_name
         self.samples = self.load_samples()
         self.ld_a, self.ld_b = ld_a, ld_b
