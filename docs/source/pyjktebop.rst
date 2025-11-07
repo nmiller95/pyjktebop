@@ -1,5 +1,5 @@
-pyjktebop
-=========
+User reference
+==============
 
 .. automodule:: pyjktebop
    :members:

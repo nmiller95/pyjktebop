@@ -10,7 +10,7 @@ copyright = '2025, N.J. Miller'
 author = 'N.J. Miller'
 
 release = '0.1'
-version = '0.1.0'
+version = '2.0.0'
 
 # -- General configuration
 

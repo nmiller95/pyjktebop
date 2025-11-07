@@ -36,11 +36,13 @@ Run TASK3 light curve fit; plot and save
 ----------------------------------------
 
 .. prompt:: bash
+
     python pyjktebop.py target 3 -rps
 Plot and save an existing TASK3 light curve and RV fit
 ------------------------------------------------------
 
 .. prompt:: bash
+
     python pyjktebop.py target 3 -vps
 Plot and save existing TASK8 light curve results
 ------------------------------------------------
@@ -48,6 +50,7 @@ Here, we also specify the number of parameters to show in the corner plot (defau
 These are counted from the leftmost column of the ``<target>.fit`` output file.
 
 .. prompt:: bash
+
     python pyjktebop.py target 8 -ps --n_corner_params 10
 Scripting
 =========
@@ -55,6 +58,7 @@ For more flexibility, you can import PyJKTEBOP as a package (but make sure to pl
 Future versions may allow more flexibility in this.
 
 .. code-block:: python
+
     from pyjktebop import JKTEBOP, TASK3, TASK8
     # Compile and run JKTEBOP
     JKTEBOP('target', recompile=True, compiler='ifort')
